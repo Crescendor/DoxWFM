@@ -8,7 +8,8 @@ import {
   X, 
   UserSquare, 
   AlertTriangle,
-  Play
+  Play,
+  CheckCircle
 } from 'lucide-react';
 
 export default function Dashboard({ data, onApproveRequest, onDenyRequest, showToast, fetchData, currentUser, token }) {
