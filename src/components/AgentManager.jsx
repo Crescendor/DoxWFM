@@ -202,6 +202,7 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
               filteredAgents.map((agent) => {
                 const agentRole = roles.find(r => r.id === agent.roleId);
                 const agentTeam = teams.find(t => t.id === agent.teamId);
+                const channelType = agentTeam ? (agentTeam.channelType || 'Call') : 'Call';
 
                 return (
                   <tr 
@@ -295,7 +296,11 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
                       <span className={`state-badge text-glow-${(agent.state || 'Offline').replace(' ', '')}`} style={{ fontSize: '0.7rem', padding: '3px 8px' }}>
                         {
                           agent.state === 'Available' ? 'Müsait' :
-                          agent.state === 'On Call' ? 'Çağrıda' :
+                          agent.state === 'On Call' ? (
+                            channelType === 'Call' ? 'Çağrıda' :
+                            channelType === 'Chat' ? 'Sohbette' :
+                            'Yazışmada'
+                          ) :
                           agent.state === 'ACW' ? 'ACW' :
                           agent.state === 'Break' ? 'Mola' :
                           agent.state === 'Lunch' ? 'Yemek' :

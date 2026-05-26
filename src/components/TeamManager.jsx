@@ -10,6 +10,7 @@ export default function TeamManager({ data, showToast, fetchData, token }) {
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3b82f6');
   const [leaderId, setLeaderId] = useState('');
+  const [channelType, setChannelType] = useState('Call');
 
   const colorPresets = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#f97316', '#14b8a6', '#6366f1', '#a855f7', '#06b6d4'];
 
@@ -23,6 +24,7 @@ export default function TeamManager({ data, showToast, fetchData, token }) {
     setName('');
     setColor('#3b82f6');
     setLeaderId('');
+    setChannelType('Call');
     setEditingTeam(null);
     setShowModal(true);
   };
@@ -32,6 +34,7 @@ export default function TeamManager({ data, showToast, fetchData, token }) {
     setName(team.name);
     setColor(team.color);
     setLeaderId(team.leaderId || '');
+    setChannelType(team.channelType || 'Call');
     setShowModal(true);
   };
 
@@ -59,7 +62,7 @@ export default function TeamManager({ data, showToast, fetchData, token }) {
     e.preventDefault();
     if (!name.trim()) return showToast("Lütfen bir takım adı girin.", "error");
 
-    const payload = { name, color, leaderId };
+    const payload = { name, color, leaderId, channelType };
 
     try {
       let res;
@@ -138,7 +141,29 @@ export default function TeamManager({ data, showToast, fetchData, token }) {
                 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f8fafc' }}>{team.name}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f8fafc' }}>{team.name}</h4>
+                      <span style={{
+                        fontSize: '0.65rem',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontWeight: 700,
+                        background: 
+                          team.channelType === 'Chat' ? 'rgba(16, 185, 129, 0.15)' : 
+                          team.channelType === 'E-Posta' ? 'rgba(139, 92, 246, 0.15)' : 
+                          'rgba(59, 130, 246, 0.15)',
+                        color: 
+                          team.channelType === 'Chat' ? '#10b981' : 
+                          team.channelType === 'E-Posta' ? '#a855f7' : 
+                          '#60a5fa',
+                        border: 
+                          team.channelType === 'Chat' ? '1px solid rgba(16, 185, 129, 0.3)' : 
+                          team.channelType === 'E-Posta' ? '1px solid rgba(139, 92, 246, 0.3)' : 
+                          '1px solid rgba(59, 130, 246, 0.3)'
+                      }}>
+                        {team.channelType || 'Call'}
+                      </span>
+                    </div>
                     <span style={{ fontSize: '0.65rem', color: '#64748b', fontFamily: 'monospace' }}>ID: {team.id}</span>
                   </div>
                   
@@ -232,6 +257,20 @@ export default function TeamManager({ data, showToast, fetchData, token }) {
                   className="wfm-input" 
                   required 
                 />
+              </div>
+
+              {/* Channel Type Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>İletişim Kanalı (Kanal Tipi)</label>
+                <select 
+                  value={channelType} 
+                  onChange={(e) => setChannelType(e.target.value)} 
+                  className="wfm-select"
+                >
+                  <option value="Call">Call (Telefon / Ses)</option>
+                  <option value="Chat">Chat (Canlı Sohbet)</option>
+                  <option value="E-Posta">E-Posta (E-Mail)</option>
+                </select>
               </div>
 
               {/* Leader Selection */}

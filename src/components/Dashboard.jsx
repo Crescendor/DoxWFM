@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 export default function Dashboard({ data, onApproveRequest, onDenyRequest, showToast, fetchData, currentUser, token }) {
-  const { queue, agents, requests, activityLog } = data;
+  const { queue, agents, requests, activityLog, teams } = data;
 
   const getSlaColor = (val) => {
     if (val >= 90) return '#10b981'; // green
@@ -191,6 +191,8 @@ export default function Dashboard({ data, onApproveRequest, onDenyRequest, showT
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {agents.map((agent) => {
               const isOffline = agent.state === 'Offline';
+              const agentTeam = teams?.find(t => t.id === agent.teamId);
+              const channelType = agentTeam ? (agentTeam.channelType || 'Call') : 'Call';
               return (
                 <div 
                   key={agent.id} 
@@ -260,7 +262,11 @@ export default function Dashboard({ data, onApproveRequest, onDenyRequest, showT
                       }} />
                       {
                         agent.state === 'Available' ? 'Müsait' :
-                        agent.state === 'On Call' ? 'Çağrıda' :
+                        agent.state === 'On Call' ? (
+                          channelType === 'Call' ? 'Çağrıda' :
+                          channelType === 'Chat' ? 'Sohbette' :
+                          'Yazışmada'
+                        ) :
                         agent.state === 'ACW' ? 'ACW (İş Sonu)' :
                         agent.state === 'Break' ? 'Molada' :
                         agent.state === 'Lunch' ? 'Yemekte' :
@@ -280,8 +286,12 @@ export default function Dashboard({ data, onApproveRequest, onDenyRequest, showT
                   {/* Bottom Bar: KPIs */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', textAlign: 'center', fontSize: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
                     <div>
-                      <span style={{ color: '#64748b', display: 'block' }}>Çağrı</span>
-                      <span style={{ fontWeight: 700 }}>{agent.stats.calls}</span>
+                      <span style={{ color: '#64748b', display: 'block' }}>
+                        {channelType === 'Call' ? 'Çağrı' : channelType === 'Chat' ? 'Sohbet' : 'E-Posta'}
+                      </span>
+                      <span style={{ fontWeight: 700 }}>
+                        {channelType === 'Call' ? (agent.stats.calls || 0) : channelType === 'Chat' ? (agent.stats.chats || 0) : (agent.stats.emails || 0)}
+                      </span>
                     </div>
                     <div>
                       <span style={{ color: '#64748b', display: 'block' }}>AHT</span>

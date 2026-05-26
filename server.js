@@ -106,7 +106,7 @@ const getInitialData = () => {
       avatarColor: '#6366f1',
       skills: ['Sistem'],
       rating: 5.0,
-      stats: { calls: 0, aht: 0, sla: 100, loginTime: '06:00:00' }
+      stats: { calls: 0, chats: 0, emails: 0, aht: 0, sla: 100, loginTime: '06:00:00' }
     }
   ];
 
@@ -257,18 +257,44 @@ setInterval(() => {
         } else {
           newState = 'Available';
         }
-        agent.stats.calls += 1;
-        data.queue.handledCalls += 1;
-        data.queue.totalCalls += 1;
         
-        const callDuration = Math.floor(Math.random() * 120) + 90;
-        agent.stats.aht = Math.round((agent.stats.aht * (agent.stats.calls - 1) + callDuration) / agent.stats.calls);
+        // Find channel type
+        const team = data.teams.find(t => t.id === agent.teamId);
+        const channelType = team ? (team.channelType || 'Call') : 'Call';
+
+        let durationMin = 90;
+        let durationMax = 120;
+        let count = 0;
+
+        if (channelType === 'Call') {
+          agent.stats.calls = (agent.stats.calls || 0) + 1;
+          count = agent.stats.calls;
+          data.queue.handledCalls += 1;
+          data.queue.totalCalls += 1;
+        } else if (channelType === 'Chat') {
+          agent.stats.chats = (agent.stats.chats || 0) + 1;
+          count = agent.stats.chats;
+          data.queue.handledCalls += 1;
+          data.queue.totalCalls += 1;
+          durationMin = 180;
+          durationMax = 300;
+        } else if (channelType === 'E-Posta') {
+          agent.stats.emails = (agent.stats.emails || 0) + 1;
+          count = agent.stats.emails;
+          data.queue.handledCalls += 1;
+          data.queue.totalCalls += 1;
+          durationMin = 300;
+          durationMax = 600;
+        }
+
+        const duration = Math.floor(Math.random() * (durationMax - durationMin)) + durationMin;
+        agent.stats.aht = Math.round((agent.stats.aht * (count - 1) + duration) / count);
         
-        const callAnsweredInTime = Math.random() < 0.90;
-        if (callAnsweredInTime) {
-          agent.stats.sla = Math.round((agent.stats.sla * (agent.stats.calls - 1) + 100) / agent.stats.calls);
+        const answeredInTime = Math.random() < (channelType === 'Call' ? 0.90 : channelType === 'Chat' ? 0.85 : 0.95);
+        if (answeredInTime) {
+          agent.stats.sla = Math.round((agent.stats.sla * (count - 1) + 100) / count);
         } else {
-          agent.stats.sla = Math.round((agent.stats.sla * (agent.stats.calls - 1) + 0) / agent.stats.calls);
+          agent.stats.sla = Math.round((agent.stats.sla * (count - 1) + 0) / count);
         }
       } else if (oldState === 'ACW') {
         newState = 'Available';
@@ -303,11 +329,16 @@ setInterval(() => {
     data.queue.totalCalls += 1;
     updated = true;
   } else if (queueRoll < 0.70 && data.queue.callsWaiting > 0) {
-    const availableCount = data.agents.filter(a => a.state === 'Available' && a.roleId === 'role-agent').length;
-    if (availableCount > 0) {
+    // Only Available agents who are in a "Call" team (or have no team, which defaults to Call)
+    const availAgents = data.agents.filter(a => {
+      if (a.state !== 'Available' || a.roleId !== 'role-agent') return false;
+      const team = data.teams.find(t => t.id === a.teamId);
+      const channelType = team ? (team.channelType || 'Call') : 'Call';
+      return channelType === 'Call';
+    });
+
+    if (availAgents.length > 0) {
       data.queue.callsWaiting -= 1;
-      
-      const availAgents = data.agents.filter(a => a.state === 'Available' && a.roleId === 'role-agent');
       const luckyAgent = availAgents[Math.floor(Math.random() * availAgents.length)];
       
       luckyAgent.state = 'On Call';
@@ -490,7 +521,7 @@ app.get('/api/teams', authenticateToken, (req, res) => {
 });
 
 app.post('/api/teams', authenticateToken, requirePermission('manage_teams'), (req, res) => {
-  const { name, color, leaderId } = req.body;
+  const { name, color, leaderId, channelType } = req.body;
   if (!name) return res.status(400).json({ error: 'Takım ismi girmelisiniz.' });
 
   const data = readDB();
@@ -498,7 +529,8 @@ app.post('/api/teams', authenticateToken, requirePermission('manage_teams'), (re
     id: `team-${Date.now()}`,
     name,
     color: color || '#3b82f6',
-    leaderId: leaderId || ''
+    leaderId: leaderId || '',
+    channelType: channelType || 'Call'
   };
 
   data.teams.push(newTeam);
@@ -508,7 +540,7 @@ app.post('/api/teams', authenticateToken, requirePermission('manage_teams'), (re
 
 app.put('/api/teams/:id', authenticateToken, requirePermission('manage_teams'), (req, res) => {
   const { id } = req.params;
-  const { name, color, leaderId } = req.body;
+  const { name, color, leaderId, channelType } = req.body;
 
   const data = readDB();
   const index = data.teams.findIndex(t => t.id === id);
@@ -518,7 +550,8 @@ app.put('/api/teams/:id', authenticateToken, requirePermission('manage_teams'), 
     ...data.teams[index],
     name: name || data.teams[index].name,
     color: color || data.teams[index].color,
-    leaderId: leaderId !== undefined ? leaderId : data.teams[index].leaderId
+    leaderId: leaderId !== undefined ? leaderId : data.teams[index].leaderId,
+    channelType: channelType !== undefined ? channelType : data.teams[index].channelType || 'Call'
   };
 
   writeDB(data);
@@ -567,7 +600,7 @@ app.post('/api/agents', authenticateToken, requirePermission('manage_agents'), (
     avatarColor: avatarColor || '#1e293b',
     skills: skills || ['Destek'],
     rating: 5.0,
-    stats: { calls: 0, aht: 0, sla: 100, loginTime: '00:00:00' }
+    stats: { calls: 0, chats: 0, emails: 0, aht: 0, sla: 100, loginTime: '00:00:00' }
   };
 
   data.agents.push(newAgent);
