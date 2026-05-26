@@ -71,7 +71,7 @@ export default function App() {
         setActiveTab('portal');
       }
     }
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   // Fetch data with token authorization
   const fetchData = async (showLoading = false) => {
@@ -89,9 +89,14 @@ export default function App() {
         if (currentUser) {
           const freshRole = json.roles.find(r => r.id === currentUser.roleId);
           if (freshRole) {
-            const updatedUser = { ...currentUser, permissions: freshRole.permissions, roleName: freshRole.name };
-            localStorage.setItem('doxwfm_user', JSON.stringify(updatedUser));
-            setCurrentUser(updatedUser);
+            const hasPermissionsChanged = JSON.stringify(currentUser.permissions) !== JSON.stringify(freshRole.permissions);
+            const hasRoleNameChanged = currentUser.roleName !== freshRole.name;
+            
+            if (hasPermissionsChanged || hasRoleNameChanged) {
+              const updatedUser = { ...currentUser, permissions: freshRole.permissions, roleName: freshRole.name };
+              localStorage.setItem('doxwfm_user', JSON.stringify(updatedUser));
+              setCurrentUser(updatedUser);
+            }
           }
         }
         setData(json);
