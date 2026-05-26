@@ -1090,6 +1090,74 @@ app.post('/api/chat/rooms/:roomId/messages', authenticateToken, (req, res) => {
   res.status(201).json(newMessage);
 });
 
+// Edit an existing message
+app.put('/api/chat/rooms/:roomId/messages/:messageId', authenticateToken, (req, res) => {
+  const { roomId, messageId } = req.params;
+  const { text } = req.body;
+
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Mesaj içeriği boş olamaz.' });
+  }
+
+  const data = readDB();
+  if (!data.chatRooms) data.chatRooms = [];
+
+  const room = data.chatRooms.find(r => r.id === roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Sohbet odası bulunamadı.' });
+  }
+
+  const message = room.messages.find(m => m.id === messageId);
+  if (!message) {
+    return res.status(404).json({ error: 'Mesaj bulunamadı.' });
+  }
+
+  // Sender auth validation: only the message sender can edit
+  if (message.senderId !== req.user.id) {
+    return res.status(403).json({ error: 'Yalnızca kendi gönderdiğiniz mesajları düzenleyebilirsiniz.' });
+  }
+
+  message.text = text.trim();
+  message.edited = true;
+  message.updatedAt = new Date().toISOString();
+
+  writeDB(data);
+  res.json(message);
+});
+
+// Delete an existing message
+app.delete('/api/chat/rooms/:roomId/messages/:messageId', authenticateToken, (req, res) => {
+  const { roomId, messageId } = req.params;
+
+  const data = readDB();
+  if (!data.chatRooms) data.chatRooms = [];
+
+  const room = data.chatRooms.find(r => r.id === roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Sohbet odası bulunamadı.' });
+  }
+
+  const messageIndex = room.messages.findIndex(m => m.id === messageId);
+  if (messageIndex === -1) {
+    return res.status(404).json({ error: 'Mesaj bulunamadı.' });
+  }
+
+  const message = room.messages[messageIndex];
+
+  // Sender or Admin auth validation
+  const isSender = message.senderId === req.user.id;
+  const isSuperAdmin = req.user.roleId === 'role-superadmin';
+  const isAdmin = req.user.roleId === 'role-admin' || req.user.permissions?.manage_teams;
+
+  if (!isSender && !isSuperAdmin && !isAdmin) {
+    return res.status(403).json({ error: 'Bu mesajı silmek için yetkiniz bulunmamaktadır.' });
+  }
+
+  room.messages.splice(messageIndex, 1);
+  writeDB(data);
+  res.json({ message: 'Mesaj başarıyla silindi.' });
+});
+
 // --- SPA Build Production Static Server ---
 const DIST_PATH = path.join(__dirname, 'dist');
 app.use(express.static(DIST_PATH));

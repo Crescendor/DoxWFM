@@ -10,7 +10,8 @@ import {
   User, 
   ChevronRight, 
   CheckSquare, 
-  Square 
+  Square,
+  Edit2
 } from 'lucide-react';
 
 export default function LiveChat({ data, currentUser, token, fetchData, showToast }) {
@@ -30,7 +31,31 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
 
   // Unread tracker state
   const [unreadCount, setUnreadCount] = useState(0);
-  const lastViewedRoomMsgsLengthRef = useRef({});
+  const lastViewedRoomMsgsLengthRef = useRef((() => {
+    try {
+      const saved = localStorage.getItem(`doxwfm_chat_last_seen_${currentUser?.id}`);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  })());
+
+  const saveReadCounts = (roomId, count) => {
+    if (!currentUser?.id) return;
+    lastViewedRoomMsgsLengthRef.current[roomId] = count;
+    try {
+      localStorage.setItem(`doxwfm_chat_last_seen_${currentUser.id}`, JSON.stringify(lastViewedRoomMsgsLengthRef.current));
+    } catch (e) {
+      console.error("Error saving read counts to localStorage", e);
+    }
+  };
+
+  // Message Edit States
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingMessageText, setEditingMessageText] = useState('');
+
+  // Unread filter state
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
   // Scroll ref for chat messages area
   const messagesEndRef = useRef(null);
@@ -52,6 +77,28 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
     return (roleMatch && teamMatch) || agentMatch;
   });
 
+  // Dynamic visible rooms with unread metadata
+  const visibleRoomsWithMetadata = visibleRooms.map(room => {
+    const lastLength = lastViewedRoomMsgsLengthRef.current[room.id] || 0;
+    const unreadMsgs = room.messages.length - lastLength;
+    return {
+      ...room,
+      unreadCount: unreadMsgs > 0 ? unreadMsgs : 0
+    };
+  });
+
+  // Sort visible rooms so that rooms with unread messages are floated to the top!
+  const sortedRooms = [...visibleRoomsWithMetadata].sort((a, b) => {
+    if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
+    if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
+    return 0; // maintain default order if both are unread or both are read
+  });
+
+  // Filter if showUnreadOnly is toggled
+  const filteredRooms = showUnreadOnly 
+    ? sortedRooms.filter(r => r.unreadCount > 0) 
+    : sortedRooms;
+
   const activeRoom = visibleRooms.find(r => r.id === activeRoomId) || visibleRooms[0] || null;
 
   // Track unread messages on sync
@@ -60,9 +107,14 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
     
     let totalUnread = 0;
     visibleRooms.forEach(room => {
+      // Initialize if not present in ref so we don't treat all historic messages as unread on first load
+      if (lastViewedRoomMsgsLengthRef.current[room.id] === undefined) {
+        saveReadCounts(room.id, room.messages.length);
+      }
+
       // If we are currently active on this room and chat is open, we assume it's read
       if (isOpen && activeRoomId === room.id) {
-        lastViewedRoomMsgsLengthRef.current[room.id] = room.messages.length;
+        saveReadCounts(room.id, room.messages.length);
         return;
       }
       
@@ -79,7 +131,7 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
   // Handle active room messages read count update when switching or opening chat
   useEffect(() => {
     if (activeRoom && isOpen) {
-      lastViewedRoomMsgsLengthRef.current[activeRoom.id] = activeRoom.messages.length;
+      saveReadCounts(activeRoom.id, activeRoom.messages.length);
       // Recalculate unread count
       let totalUnread = 0;
       visibleRooms.forEach(room => {
@@ -200,6 +252,56 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
     }
   };
 
+  // Handle Save Edit Message
+  const handleSaveEdit = async (e, msgId) => {
+    e.preventDefault();
+    if (!editingMessageText.trim() || !activeRoom) return;
+
+    try {
+      const res = await fetch(`/api/chat/rooms/${activeRoom.id}/messages/${msgId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ text: editingMessageText.trim() })
+      });
+
+      if (res.ok) {
+        setEditingMessageId(null);
+        fetchData();
+      } else {
+        const err = await res.json();
+        showToast(err.error || "Mesaj düzenlenemedi.", "error");
+      }
+    } catch (err) {
+      showToast("Bağlantı hatası oluştu.", "error");
+    }
+  };
+
+  // Handle Delete Message
+  const handleDeleteMessage = async (msgId) => {
+    if (!window.confirm("Bu mesajı silmek istediğinizden emin misiniz?")) return;
+
+    try {
+      const res = await fetch(`/api/chat/rooms/${activeRoom.id}/messages/${msgId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        fetchData();
+      } else {
+        const err = await res.json();
+        showToast(err.error || "Mesaj silinemedi.", "error");
+      }
+    } catch (err) {
+      showToast("Bağlantı hatası oluştu.", "error");
+    }
+  };
+
   // Toggles for checkboxes in Create Room form
   const toggleRoleLimit = (id) => {
     setAllowedRoles(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -280,8 +382,33 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
               70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); }
               100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
             }
+            @keyframes pulse-badge-glow {
+              0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+              70% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+              100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+            }
             .chat-fab-button:hover {
               transform: scale(1.08);
+            }
+            .chat-message-bubble-container {
+              position: relative;
+            }
+            .chat-message-actions {
+              display: none;
+              position: absolute;
+              top: -12px;
+              right: 8px;
+              background: rgba(15, 23, 42, 0.95);
+              border: 1px solid rgba(255,255,255,0.08);
+              border-radius: 6px;
+              padding: 3px 6px;
+              gap: 4px;
+              z-index: 10;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              align-items: center;
+            }
+            .chat-message-bubble-container:hover .chat-message-actions {
+              display: flex;
             }
           `}</style>
         </button>
@@ -356,16 +483,41 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
               )}
             </div>
 
+            {/* Unread filter toggle bar */}
+            <div style={{
+              padding: '8px 12px',
+              borderBottom: '1px solid rgba(255,255,255,0.04)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'rgba(255,255,255,0.01)'
+            }}>
+              <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Okunmamış En Üstte</span>
+              <button
+                onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+                style={{
+                  background: showUnreadOnly ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.04)',
+                  border: showUnreadOnly ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255,255,255,0.06)',
+                  padding: '2px 8px',
+                  borderRadius: '50px',
+                  fontSize: '0.6rem',
+                  fontWeight: 700,
+                  color: showUnreadOnly ? '#f87171' : '#94a3b8',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {showUnreadOnly ? 'Tümü' : 'Okunmamışlar'}
+              </button>
+            </div>
+
             {/* Rooms scroll lists */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {visibleRooms.map(room => {
+                {filteredRooms.map(room => {
                   const isActive = activeRoomId === room.id;
                   const isRestricted = room.allowedRoles.length > 0 || room.allowedTeams.length > 0 || room.allowedAgents.length > 0;
-                  
-                  // Calculate unread badge specifically for this room
-                  const lastReadLength = lastViewedRoomMsgsLengthRef.current[room.id] || 0;
-                  const unreadMsgs = room.messages.length - lastReadLength;
+                  const unreadMsgs = room.unreadCount;
 
                   return (
                     <div
@@ -407,12 +559,16 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
                         {unreadMsgs > 0 && !isActive && (
                           <span style={{
-                            background: '#ef4444',
+                            background: 'linear-gradient(135deg, #ef4444, #f97316)',
                             color: 'white',
                             fontSize: '0.65rem',
                             fontWeight: 800,
-                            padding: '1px 5px',
-                            borderRadius: '50px'
+                            padding: '2px 6px',
+                            borderRadius: '50px',
+                            boxShadow: '0 0 10px rgba(239, 68, 68, 0.5)',
+                            animation: 'pulse-badge-glow 1.5s infinite',
+                            display: 'inline-block',
+                            lineHeight: 1
                           }}>{unreadMsgs}</span>
                         )}
 
@@ -504,8 +660,10 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
                         alignItems: isMe ? 'flex-end' : 'flex-start',
                         gap: '3px',
                         maxWidth: '80%',
-                        alignSelf: isMe ? 'flex-end' : 'flex-start'
+                        alignSelf: isMe ? 'flex-end' : 'flex-start',
+                        position: 'relative'
                       }}
+                      className="chat-message-bubble-container"
                     >
                       {/* Sender metadata label */}
                       {!isMe && (
@@ -529,23 +687,67 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
                         </div>
                       )}
 
-                      {/* Msg bubble card */}
-                      <div 
-                        style={{
-                          padding: '10px 14px',
-                          borderRadius: isMe ? '12px 12px 2px 12px' : '2px 12px 12px 12px',
-                          background: isMe ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : 'rgba(255,255,255,0.04)',
-                          border: isMe ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.02)',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap'
-                        }}
-                      >
-                        <span style={{ fontSize: '0.8rem', color: '#f8fafc', lineHeight: 1.4 }}>{msg.text}</span>
-                      </div>
+                      {/* Msg bubble card or Inline Edit input form */}
+                      {editingMessageId === msg.id ? (
+                        <form onSubmit={(e) => handleSaveEdit(e, msg.id)} style={{ display: 'flex', gap: '6px', width: '100%', minWidth: '220px', background: 'rgba(255,255,255,0.02)', padding: '6px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <input 
+                            type="text"
+                            value={editingMessageText}
+                            onChange={(e) => setEditingMessageText(e.target.value)}
+                            className="wfm-input"
+                            style={{ padding: '6px 10px', fontSize: '0.8rem', flex: 1, borderRadius: '6px' }}
+                            required
+                            autoFocus
+                          />
+                          <button type="submit" className="wfm-btn wfm-btn-primary" style={{ padding: '6px 10px', background: '#10b981', minWidth: '32px' }} title="Kaydet">
+                            <Send size={10} />
+                          </button>
+                          <button type="button" onClick={() => setEditingMessageId(null)} className="wfm-btn wfm-btn-secondary" style={{ padding: '6px 10px', minWidth: '32px' }} title="Vazgeç">
+                            <X size={10} />
+                          </button>
+                        </form>
+                      ) : (
+                        <div 
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: isMe ? '12px 12px 2px 12px' : '2px 12px 12px 12px',
+                            background: isMe ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : 'rgba(255,255,255,0.04)',
+                            border: isMe ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.02)',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                            wordBreak: 'break-word',
+                            whiteSpace: 'pre-wrap'
+                          }}
+                        >
+                          <span style={{ fontSize: '0.8rem', color: '#f8fafc', lineHeight: 1.4 }}>{msg.text}</span>
+                        </div>
+                      )}
+
+                      {/* Edit/Delete action bar triggers on hover for own messages */}
+                      {isMe && editingMessageId !== msg.id && (
+                        <div className="chat-message-actions">
+                          <button
+                            onClick={() => {
+                              setEditingMessageId(msg.id);
+                              setEditingMessageText(msg.text);
+                            }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                            title="Düzenle"
+                          >
+                            <Edit2 size={12} color="#60a5fa" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                            title="Sil"
+                          >
+                            <Trash2 size={12} color="#f87171" />
+                          </button>
+                        </div>
+                      )}
                       
                       {/* time stamp */}
                       <span style={{ fontSize: '0.55rem', color: '#64748b', marginRight: '4px', marginLeft: '4px' }}>
+                        {msg.edited && <span style={{ fontStyle: 'italic', marginRight: '4px', color: '#38bdf8' }}>(düzenlendi)</span>}
                         {formatTime(msg.timestamp)}
                       </span>
                     </div>
