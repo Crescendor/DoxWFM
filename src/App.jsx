@@ -8,8 +8,9 @@ import {
   LogOut,
   CheckCircle,
   XCircle,
-  User,
-  ShieldCheck
+  ShieldAlert,
+  Users2,
+  FolderLock
 } from 'lucide-react';
 
 import Dashboard from './components/Dashboard.jsx';
@@ -17,9 +18,10 @@ import Scheduler from './components/Scheduler.jsx';
 import AgentManager from './components/AgentManager.jsx';
 import MyPortal from './components/MyPortal.jsx';
 import Login from './components/Login.jsx';
+import RoleManager from './components/RoleManager.jsx';
+import TeamManager from './components/TeamManager.jsx';
 
 export default function App() {
-  // Production authentication state backed by localStorage
   const [token, setToken] = useState(localStorage.getItem('doxwfm_token') || null);
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -32,6 +34,8 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [data, setData] = useState({
+    roles: [],
+    teams: [],
     agents: [],
     schedules: {},
     queue: {
@@ -51,13 +55,20 @@ export default function App() {
   const [syncing, setSyncing] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  // Sync default tab on login role
+  // Sync default tab based on logged-in user permissions on login
   useEffect(() => {
     if (currentUser) {
-      if (currentUser.role === 'agent') {
+      // Check permissions in order of priority
+      if (currentUser.roleId === 'role-agent') {
         setActiveTab('portal');
-      } else {
+      } else if (currentUser.permissions?.view_all_dashboards) {
         setActiveTab('dashboard');
+      } else if (currentUser.permissions?.manage_schedules) {
+        setActiveTab('scheduler');
+      } else if (currentUser.permissions?.manage_agents) {
+        setActiveTab('agents');
+      } else {
+        setActiveTab('portal');
       }
     }
   }, [currentUser]);
@@ -73,9 +84,18 @@ export default function App() {
       });
       if (response.ok) {
         const json = await response.json();
+        
+        // Dynamically append permission values to active user if they were updated!
+        if (currentUser) {
+          const freshRole = json.roles.find(r => r.id === currentUser.roleId);
+          if (freshRole) {
+            const updatedUser = { ...currentUser, permissions: freshRole.permissions, roleName: freshRole.name };
+            localStorage.setItem('doxwfm_user', JSON.stringify(updatedUser));
+            setCurrentUser(updatedUser);
+          }
+        }
         setData(json);
       } else if (response.status === 401 || response.status === 403) {
-        // Session expired or invalid, force logout
         handleLogout();
         showToast("Oturum süresi doldu, lütfen tekrar giriş yapın.", "error");
       }
@@ -121,7 +141,7 @@ export default function App() {
   };
 
   const handleResetData = async () => {
-    if (currentUser?.role !== 'superadmin') {
+    if (currentUser?.roleId !== 'role-superadmin') {
       showToast("Bu işlemi yalnızca Süper Admin gerçekleştirebilir.", "error");
       return;
     }
@@ -158,8 +178,8 @@ export default function App() {
         showToast("Mola/Yemek talebi onaylandı!", "success");
         fetchData();
       } else {
-        const data = await res.json();
-        showToast(data.error || "Onaylama başarısız.", "error");
+        const errData = await res.json();
+        showToast(errData.error || "Onaylama başarısız.", "error");
       }
     } catch (err) {
       showToast("Talep onaylanırken hata oluştu", "error");
@@ -180,15 +200,15 @@ export default function App() {
         showToast("Mola/Yemek talebi reddedildi.", "error");
         fetchData();
       } else {
-        const data = await res.json();
-        showToast(data.error || "Reddetme başarısız.", "error");
+        const errData = await res.json();
+        showToast(errData.error || "Reddetme başarısız.", "error");
       }
     } catch (err) {
       showToast("Talep reddedilirken hata oluştu", "error");
     }
   };
 
-  // Unauthenticated Route handling
+  // Unauthenticated view
   if (!token || !currentUser) {
     return (
       <>
@@ -219,7 +239,7 @@ export default function App() {
     );
   }
 
-  // Handle loading state during bootup sync
+  // Handle loading state
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '15px' }}>
@@ -230,8 +250,8 @@ export default function App() {
     );
   }
 
-  // Strictly bind personal portal agent session data (cannot be bypassed by clients)
   const currentAgent = data.agents.find(a => a.id === currentUser.id);
+  const permissions = currentUser.permissions || {};
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
@@ -291,38 +311,65 @@ export default function App() {
             </div>
           </div>
 
-          {/* Navigation Matrix by Allowed Role Level */}
+          {/* Navigation Matrix by Verified Role Permissions */}
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {currentUser.role !== 'agent' ? (
-              <>
-                <button 
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`wfm-btn ${activeTab === 'dashboard' ? 'wfm-btn-primary' : 'wfm-btn-secondary'}`}
-                  style={{ width: '100%', justifyContent: 'flex-start' }}
-                >
-                  <LayoutDashboard size={18} />
-                  <span>Panel Monitor</span>
-                </button>
-                
-                <button 
-                  onClick={() => setActiveTab('scheduler')}
-                  className={`wfm-btn ${activeTab === 'scheduler' ? 'wfm-btn-primary' : 'wfm-btn-secondary'}`}
-                  style={{ width: '100%', justifyContent: 'flex-start' }}
-                >
-                  <CalendarDays size={18} />
-                  <span>Vardiya Planlayıcı</span>
-                </button>
-                
-                <button 
-                  onClick={() => setActiveTab('agents')}
-                  className={`wfm-btn ${activeTab === 'agents' ? 'wfm-btn-primary' : 'wfm-btn-secondary'}`}
-                  style={{ width: '100%', justifyContent: 'flex-start' }}
-                >
-                  <Users size={18} />
-                  <span>Temsilci Yönetimi</span>
-                </button>
-              </>
-            ) : (
+            
+            {permissions.view_all_dashboards && (
+              <button 
+                onClick={() => setActiveTab('dashboard')}
+                className={`wfm-btn ${activeTab === 'dashboard' ? 'wfm-btn-primary' : 'wfm-btn-secondary'}`}
+                style={{ width: '100%', justifyContent: 'flex-start' }}
+              >
+                <LayoutDashboard size={18} />
+                <span>Panel Monitor</span>
+              </button>
+            )}
+            
+            {permissions.manage_schedules && (
+              <button 
+                onClick={() => setActiveTab('scheduler')}
+                className={`wfm-btn ${activeTab === 'scheduler' ? 'wfm-btn-primary' : 'wfm-btn-secondary'}`}
+                style={{ width: '100%', justifyContent: 'flex-start' }}
+              >
+                <CalendarDays size={18} />
+                <span>Vardiya Planlayıcı</span>
+              </button>
+            )}
+
+            {permissions.manage_teams && (
+              <button 
+                onClick={() => setActiveTab('teams')}
+                className={`wfm-btn ${activeTab === 'teams' ? 'wfm-btn-primary' : 'wfm-btn-secondary'}`}
+                style={{ width: '100%', justifyContent: 'flex-start' }}
+              >
+                <Users2 size={18} />
+                <span>Takım Yönetimi</span>
+              </button>
+            )}
+            
+            {permissions.manage_agents && (
+              <button 
+                onClick={() => setActiveTab('agents')}
+                className={`wfm-btn ${activeTab === 'agents' ? 'wfm-btn-primary' : 'wfm-btn-secondary'}`}
+                style={{ width: '100%', justifyContent: 'flex-start' }}
+              >
+                <Users size={18} />
+                <span>Temsilci Yönetimi</span>
+              </button>
+            )}
+
+            {permissions.manage_roles && (
+              <button 
+                onClick={() => setActiveTab('roles')}
+                className={`wfm-btn ${activeTab === 'roles' ? 'wfm-btn-primary' : 'wfm-btn-secondary'}`}
+                style={{ width: '100%', justifyContent: 'flex-start' }}
+              >
+                <FolderLock size={18} />
+                <span>Rol & Yetki Yönetimi</span>
+              </button>
+            )}
+
+            {permissions.view_personal_only && (
               <button 
                 onClick={() => setActiveTab('portal')}
                 className={`wfm-btn wfm-btn-primary`}
@@ -335,7 +382,7 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Bottom Panel: Logged Profile widget */}
+        {/* Bottom Profile widget */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           
           {/* Authenticated Profile Card */}
@@ -358,38 +405,33 @@ export default function App() {
               <span style={{ fontWeight: 700, display: 'block', fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.name}</span>
               <span style={{ 
                 fontSize: '0.65rem', 
-                color: currentUser.role === 'superadmin' ? '#f87171' : currentUser.role === 'supervisor' ? '#60a5fa' : '#10b981', 
+                color: currentUser.roleId === 'role-superadmin' ? '#f87171' : '#60a5fa', 
                 fontWeight: 600, 
                 textTransform: 'uppercase'
               }}>
-                {
-                  currentUser.role === 'superadmin' ? 'Süper Admin' :
-                  currentUser.role === 'supervisor' ? 'Süpervizör' : 'Temsilci'
-                }
+                {currentUser.roleName || 'Kullanıcı'}
               </span>
             </div>
           </div>
 
-          {/* Sync indicator */}
+          {/* Sync status */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 4px', fontSize: '0.7rem', color: '#64748b' }}>
             <RefreshCw size={10} style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }} />
             <span>{syncing ? 'Veriler senkronize ediliyor...' : 'Gerçek Zamanlı Veriler'}</span>
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            {/* Database Reset Button for SuperAdmin */}
-            {currentUser.role === 'superadmin' && (
+            {currentUser.roleId === 'role-superadmin' && (
               <button 
                 onClick={handleResetData}
                 className="wfm-btn wfm-btn-secondary" 
                 style={{ padding: '10px', minWidth: '40px' }}
-                title="Sistemi Sıfırla"
+                title="Tüm Sistemi Sıfırla"
               >
                 <RefreshCw size={16} />
               </button>
             )}
             
-            {/* Logout Button */}
             <button 
               onClick={handleLogout}
               className="wfm-btn wfm-btn-danger"
@@ -418,19 +460,23 @@ export default function App() {
           <div>
             <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>
               {activeTab === 'dashboard' && 'Gerçek Zamanlı Durum Monitörü'}
-              {activeTab === 'scheduler' && 'Haftalık Vardiya Planlayıcı'}
+              {activeTab === 'scheduler' && 'Dakika Bazlı Vardiya & Aktivite Çizelgesi'}
               {activeTab === 'agents' && 'Müşteri Temsilcisi Yönetim Veritabanı'}
+              {activeTab === 'roles' && 'Rol & Yetki Kademesi Yapılandırması'}
+              {activeTab === 'teams' && 'Takım & Kuyruk Departman Yönetimi'}
               {activeTab === 'portal' && `Müşteri Temsilcisi Portalı: ${currentUser.name}`}
             </h1>
             <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '2px' }}>
               {activeTab === 'dashboard' && 'Kuyruk durumunu, çağrı hacmini ve temsilci faaliyetlerini canlı izleyin.'}
-              {activeTab === 'scheduler' && 'Hizmet seviyesini korumak için vardiyaları, yemek ve mola saatlerini planlayın.'}
+              {activeTab === 'scheduler' && 'İnce ayarlı 96 hücreli çizelgede vardiyaları, yemek ve kısa mola saatlerini planlayın.'}
               {activeTab === 'agents' && 'Süpervizör yetkileriyle temsilci kayıtlarını ekleyin, güncelleyin veya silin.'}
+              {activeTab === 'roles' && 'Super Admin arayüzünde rolleri tanımlayın ve erişim yetkilerini toggle ile açıp kapatın.'}
+              {activeTab === 'teams' && 'Çağrı merkezinde kuyruğa göre takım etiketleri oluşturup Takım Liderlerini bağlayın.'}
               {activeTab === 'portal' && 'Kendi vardiya çizelgenizi izleyin, mola talebi gönderin ve performansınızı takip edin.'}
             </p>
           </div>
 
-          {/* Quick Date Display */}
+          {/* Quick Session Display */}
           <div className="glass-panel" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6', animation: 'state-pulse-OnCall 1.5s infinite' }} />
             <span style={{ fontWeight: 600 }}>Aktif Oturum</span>
@@ -464,6 +510,26 @@ export default function App() {
         
         {activeTab === 'agents' && (
           <AgentManager 
+            data={data} 
+            showToast={showToast}
+            fetchData={fetchData}
+            currentUser={currentUser}
+            token={token}
+          />
+        )}
+
+        {activeTab === 'roles' && (
+          <RoleManager 
+            data={data} 
+            showToast={showToast}
+            fetchData={fetchData}
+            currentUser={currentUser}
+            token={token}
+          />
+        )}
+
+        {activeTab === 'teams' && (
+          <TeamManager 
             data={data} 
             showToast={showToast}
             fetchData={fetchData}

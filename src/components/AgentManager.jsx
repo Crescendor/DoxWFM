@@ -9,18 +9,20 @@ import {
   X,
   Search,
   Lock,
-  User as UserIcon
+  User as UserIcon,
+  Users2
 } from 'lucide-react';
 
 export default function AgentManager({ data, showToast, fetchData, currentUser, token }) {
-  const { agents } = data;
+  const { agents, roles, teams } = data;
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState(null);
 
   // Form States
   const [name, setName] = useState('');
-  const [role, setRole] = useState('agent');
+  const [roleId, setRoleId] = useState('role-agent');
+  const [teamId, setTeamId] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [skills, setSkills] = useState(['Destek']);
@@ -39,7 +41,8 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
 
   const handleOpenAdd = () => {
     setName('');
-    setRole('agent');
+    setRoleId('role-agent');
+    setTeamId('');
     setUsername('');
     setPassword('');
     setSkills(['Destek']);
@@ -51,34 +54,35 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
   const handleOpenEdit = (agent) => {
     setEditingAgent(agent);
     setName(agent.name);
-    setRole(agent.role);
+    setRoleId(agent.roleId || 'role-agent');
+    setTeamId(agent.teamId || '');
     setUsername(agent.username || '');
     setPassword(''); // Leave password empty initially during edit
-    setSkills(agent.skills);
+    setSkills(agent.skills || ['Destek']);
     setAvatarColor(agent.avatarColor);
     setShowAddModal(true);
   };
 
   const handleDeleteAgent = async (agentId, agentName) => {
-    if (currentUser.role !== 'superadmin') {
+    if (currentUser.roleId !== 'role-superadmin') {
       showToast("Temsilci silme yetkiniz bulunmamaktadır. Yalnızca Süper Admin silebilir.", "error");
       return;
     }
-    if (!window.confirm(`${agentName} isimli temsilciyi sistemden kalıcı olarak silmek istiyor musunuz?`)) return;
+    if (!window.confirm(`"${agentName}" isimli personeli sistemden kalıcı olarak silmek istiyor musunuz?`)) return;
     try {
       const res = await fetch(`/api/agents/${agentId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        showToast("Temsilci başarıyla silindi", "success");
+        showToast("Personel kaydı başarıyla silindi", "success");
         fetchData();
       } else {
         const errData = await res.json();
         showToast(errData.error || "Silme işlemi başarısız.", "error");
       }
     } catch (err) {
-      showToast("Temsilci silinemedi", "error");
+      showToast("Personel silinemedi", "error");
     }
   };
 
@@ -90,13 +94,13 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
 
     const payload = { 
       name, 
-      role, 
+      roleId, 
+      teamId,
       skills, 
       avatarColor,
       username: username.trim()
     };
 
-    // Only include password if provided (handles optional password update during edit)
     if (password.trim()) {
       payload.password = password.trim();
     }
@@ -104,7 +108,6 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
     try {
       let res;
       if (editingAgent) {
-        // Edit Mode
         res = await fetch(`/api/agents/${editingAgent.id}`, {
           method: 'PUT',
           headers: { 
@@ -114,7 +117,6 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
           body: JSON.stringify(payload)
         });
       } else {
-        // Add Mode
         res = await fetch('/api/agents', {
           method: 'POST',
           headers: { 
@@ -127,7 +129,7 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
 
       if (res.ok) {
         showToast(
-          editingAgent ? "Temsilci bilgileri güncellendi!" : "Yeni temsilci sisteme eklendi!", 
+          editingAgent ? "Personel bilgileri güncellendi!" : "Yeni personel başarıyla sisteme eklendi!", 
           "success"
         );
         setShowAddModal(false);
@@ -153,26 +155,24 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
       {/* Search & Actions Ribbon */}
       <section className="glass-panel" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         
-        {/* Search Input */}
         <div style={{ position: 'relative', width: '100%', maxWidth: '350px' }}>
           <input 
             type="text" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="İsim, kullanıcı adı veya yetkinlik ara..."
+            placeholder="İsim, kullanıcı adı veya beceri ara..."
             className="wfm-input"
             style={{ paddingLeft: '40px' }}
           />
           <Search size={16} style={{ position: 'absolute', left: '14px', top: '13px', color: '#64748b' }} />
         </div>
 
-        {/* Add Agent Button */}
         <button 
           onClick={handleOpenAdd}
           className="wfm-btn wfm-btn-primary"
         >
           <UserPlus size={18} />
-          <span>Yeni Temsilci Ekle</span>
+          <span>Yeni Personel Ekle</span>
         </button>
 
       </section>
@@ -183,10 +183,10 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
           <thead>
             <tr style={{ borderBottom: '2px solid var(--border-glass-bright)', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600, uppercase: 'true' }}>
               <th style={{ padding: '12px 16px' }}>Profil & Kullanıcı Adı</th>
-              <th style={{ padding: '12px 16px' }}>Rol</th>
+              <th style={{ padding: '12px 16px' }}>Yetki Kademesi (Rol)</th>
+              <th style={{ padding: '12px 16px' }}>Kuyruk / Departman</th>
               <th style={{ padding: '12px 16px' }}>Yetkinlik ve Beceriler</th>
               <th style={{ padding: '12px 16px' }}>Durum</th>
-              <th style={{ padding: '12px 16px' }}>Bugünkü Çağrı</th>
               <th style={{ padding: '12px 16px' }}>Derecelendirme</th>
               <th style={{ padding: '12px 16px', textAlign: 'right' }}>İşlemler</th>
             </tr>
@@ -195,142 +195,157 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
             {filteredAgents.length === 0 ? (
               <tr>
                 <td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: '#64748b', fontSize: '0.9rem' }}>
-                  Arama kriterlerinize uygun temsilci bulunamadı.
+                  Arama kriterlerinize uygun personel kaydı bulunamadı.
                 </td>
               </tr>
             ) : (
-              filteredAgents.map((agent) => (
-                <tr 
-                  key={agent.id} 
-                  style={{ 
-                    borderBottom: '1px solid rgba(255,255,255,0.03)', 
-                    transition: 'background 0.2s',
-                    height: '60px'
-                  }}
-                  className="glass-panel-hover"
-                >
-                  {/* Profile */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '8px',
-                        backgroundColor: agent.avatarColor,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+              filteredAgents.map((agent) => {
+                const agentRole = roles.find(r => r.id === agent.roleId);
+                const agentTeam = teams.find(t => t.id === agent.teamId);
+
+                return (
+                  <tr 
+                    key={agent.id} 
+                    style={{ 
+                      borderBottom: '1px solid rgba(255,255,255,0.03)', 
+                      transition: 'background 0.2s',
+                      height: '60px'
+                    }}
+                    className="glass-panel-hover"
+                  >
+                    {/* Profile */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          backgroundColor: agent.avatarColor,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          color: 'white',
+                          border: '1px solid rgba(255,255,255,0.05)'
+                        }}>
+                          {agent.avatar}
+                        </div>
+                        <div>
+                          <span style={{ fontWeight: 600, display: 'block', fontSize: '0.85rem' }}>{agent.name}</span>
+                          <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Kullanıcı: <strong>{agent.username || 'Yok'}</strong></span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Role */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ 
+                        fontSize: '0.7rem', 
                         fontWeight: 700,
-                        fontSize: '0.8rem',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.05)'
+                        textTransform: 'uppercase',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        background: 
+                          agent.roleId === 'role-superadmin' ? 'rgba(139, 92, 246, 0.1)' : 
+                          agent.roleId === 'role-admin' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                        color: 
+                          agent.roleId === 'role-superadmin' ? '#c084fc' : 
+                          agent.roleId === 'role-admin' ? '#f87171' : '#60a5fa',
+                        border: 
+                          agent.roleId === 'role-superadmin' ? '1px solid rgba(139, 92, 246, 0.2)' : 
+                          agent.roleId === 'role-admin' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(59, 130, 246, 0.2)'
                       }}>
-                        {agent.avatar}
-                      </div>
-                      <div>
-                        <span style={{ fontWeight: 600, display: 'block', fontSize: '0.85rem' }}>{agent.name}</span>
-                        <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Kullanıcı: <strong>{agent.username || 'Yok'}</strong></span>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Role */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ 
-                      fontSize: '0.7rem', 
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      background: 
-                        agent.role === 'superadmin' ? 'rgba(139, 92, 246, 0.1)' : 
-                        agent.role === 'supervisor' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                      color: 
-                        agent.role === 'superadmin' ? '#c084fc' : 
-                        agent.role === 'supervisor' ? '#f87171' : '#60a5fa',
-                      border: 
-                        agent.role === 'superadmin' ? '1px solid rgba(139, 92, 246, 0.2)' : 
-                        agent.role === 'supervisor' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(59, 130, 246, 0.2)'
-                    }}>
-                      {
-                        agent.role === 'superadmin' ? 'Süper Admin' :
-                        agent.role === 'supervisor' ? 'Süpervizör' : 'Temsilci'
-                      }
-                    </span>
-                  </td>
-
-                  {/* Skills */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                      {agent.skills.map(skill => (
-                        <span key={skill} className="skill-tag" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-
-                  {/* Active State */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <span className={`state-badge text-glow-${agent.state.replace(' ', '')}`} style={{ fontSize: '0.7rem', padding: '3px 8px' }}>
-                      {
-                        agent.state === 'Available' ? 'Müsait' :
-                        agent.state === 'On Call' ? 'Çağrıda' :
-                        agent.state === 'ACW' ? 'ACW' :
-                        agent.state === 'Break' ? 'Mola' :
-                        agent.state === 'Lunch' ? 'Yemek' :
-                        agent.state === 'Training' ? 'Eğitim' :
-                        agent.state === 'Meeting' ? 'Toplantı' : 'Çevrimdışı'
-                      }
-                    </span>
-                  </td>
-
-                  {/* Today's Handled Calls */}
-                  <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: '0.85rem' }}>
-                    {agent.stats.calls}
-                  </td>
-
-                  {/* Performance Rating */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#fbbf24' }}>
-                      <Star size={12} fill="#fbbf24" />
-                      <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#f8fafc' }}>
-                        {agent.rating ? agent.rating.toFixed(1) : '5.0'}
+                        {agentRole ? agentRole.name : 'Belirsiz Rol'}
                       </span>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Actions */}
-                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: '6px' }}>
-                      <button 
-                        onClick={() => handleOpenEdit(agent)}
-                        className="wfm-btn wfm-btn-secondary" 
-                        style={{ padding: '6px 10px', borderRadius: '6px' }}
-                        title="Düzenle"
-                      >
-                        <Edit size={14} />
-                      </button>
-                      
-                      {/* Only superadmin can delete users, disable for supervisor */}
-                      <button 
-                        onClick={() => handleDeleteAgent(agent.id, agent.name)}
-                        className="wfm-btn wfm-btn-danger" 
-                        style={{ 
-                          padding: '6px 10px', 
-                          borderRadius: '6px',
-                          opacity: currentUser.role !== 'superadmin' ? 0.3 : 1,
-                          cursor: currentUser.role !== 'superadmin' ? 'not-allowed' : 'pointer'
-                        }}
-                        disabled={currentUser.role !== 'superadmin'}
-                        title={currentUser.role === 'superadmin' ? "Sil" : "Sadece Süper Admin Silebilir"}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    {/* Team */}
+                    <td style={{ padding: '12px 16px' }}>
+                      {agentTeam ? (
+                        <span style={{ 
+                          fontSize: '0.75rem', 
+                          fontWeight: 600, 
+                          color: agentTeam.color,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: agentTeam.color }} />
+                          {agentTeam.name}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>Atanmamış</span>
+                      )}
+                    </td>
+
+                    {/* Skills */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {agent.skills.map(skill => (
+                          <span key={skill} className="skill-tag" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+
+                    {/* Active State */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <span className={`state-badge text-glow-${(agent.state || 'Offline').replace(' ', '')}`} style={{ fontSize: '0.7rem', padding: '3px 8px' }}>
+                        {
+                          agent.state === 'Available' ? 'Müsait' :
+                          agent.state === 'On Call' ? 'Çağrıda' :
+                          agent.state === 'ACW' ? 'ACW' :
+                          agent.state === 'Break' ? 'Mola' :
+                          agent.state === 'Lunch' ? 'Yemek' :
+                          agent.state === 'Training' ? 'Eğitim' :
+                          agent.state === 'Meeting' ? 'Toplantı' : 'Çevrimdışı'
+                        }
+                      </span>
+                    </td>
+
+                    {/* Performance Rating */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#fbbf24' }}>
+                        <Star size={12} fill="#fbbf24" />
+                        <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#f8fafc' }}>
+                          {agent.rating ? agent.rating.toFixed(1) : '5.0'}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Actions */}
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: '6px' }}>
+                        <button 
+                          onClick={() => handleOpenEdit(agent)}
+                          className="wfm-btn wfm-btn-secondary" 
+                          style={{ padding: '6px 10px', borderRadius: '6px' }}
+                          title="Düzenle"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        
+                        <button 
+                          onClick={() => handleDeleteAgent(agent.id, agent.name)}
+                          className="wfm-btn wfm-btn-danger" 
+                          style={{ 
+                            padding: '6px 10px', 
+                            borderRadius: '6px',
+                            opacity: currentUser.roleId !== 'role-superadmin' ? 0.3 : 1,
+                            cursor: currentUser.roleId !== 'role-superadmin' ? 'not-allowed' : 'pointer'
+                          }}
+                          disabled={currentUser.roleId !== 'role-superadmin'}
+                          title={currentUser.roleId === 'role-superadmin' ? "Sil" : "Sadece Süper Admin Silebilir"}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -339,17 +354,15 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
       {/* Add / Edit Agent Modal */}
       {showAddModal && (
         <div className="modal-overlay">
-          <div className="glass-panel modal-content" style={{ padding: '24px', background: '#111827', border: '1px solid var(--border-glass-bright)' }}>
+          <div className="glass-panel modal-content" style={{ padding: '24px', background: '#111827', border: '1px solid var(--border-glass-bright)', maxWidth: '480px' }}>
             
             {/* Modal Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-                  {editingAgent ? 'Temsilci Bilgilerini Güncelle' : 'Yeni Temsilci Oluştur'}
+                  {editingAgent ? 'Personel Bilgilerini Güncelle' : 'Yeni Personel Oluştur'}
                 </h3>
-                <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                  {editingAgent ? `${editingAgent.name} (ID: ${editingAgent.id})` : 'Sisteme yeni bir personel kaydı yapın.'}
-                </span>
+                <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Sisteme yeni personel kaydı ve giriş bilgileri tanımlayın.</span>
               </div>
               <button 
                 onClick={() => setShowAddModal(false)}
@@ -360,16 +373,16 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               
               {/* Name Input */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>Temsilci Adı Soyadı</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>Adı Soyadı</label>
                 <input 
                   type="text" 
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Örn: Ahmet Yılmaz"
+                  placeholder="Örn: Can Kaya"
                   className="wfm-input"
                   required
                 />
@@ -395,14 +408,14 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
                 
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>
-                    {editingAgent ? 'Yeni Şifre (İsteğe Bağlı)' : 'Giriş Şifresi'}
+                    {editingAgent ? 'Şifreyi Değiştir (İsteğe Bağlı)' : 'Giriş Şifresi'}
                   </label>
                   <div style={{ position: 'relative' }}>
                     <input 
                       type="password" 
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={editingAgent ? "Değişmeyecekse boş bırakın" : "şifre"}
+                      placeholder={editingAgent ? "Aynı kalacaksa boş bırakın" : "şifre"}
                       className="wfm-input"
                       style={{ paddingLeft: '32px' }}
                       required={!editingAgent}
@@ -412,19 +425,32 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
                 </div>
               </div>
 
-              {/* Role Selection */}
+              {/* Dynamic Role Selection dropdown */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>Sistem Rolü Yetki Kademesi</label>
                 <select 
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
+                  value={roleId}
+                  onChange={(e) => setRoleId(e.target.value)}
                   className="wfm-select"
                 >
-                  <option value="agent">Müşteri Temsilcisi (Agent Portal)</option>
-                  <option value="supervisor">Süpervizör (Admin Dashboard)</option>
-                  {currentUser.role === 'superadmin' && (
-                    <option value="superadmin">Süper Admin (Tam Yetki)</option>
-                  )}
+                  {roles && roles.map(role => (
+                    <option key={role.id} value={role.id}>{role.name} ({role.description})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Dynamic Team Selection dropdown */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>Atanacak Takım / Departman</label>
+                <select 
+                  value={teamId}
+                  onChange={(e) => setTeamId(e.target.value)}
+                  className="wfm-select"
+                >
+                  <option value="">Bağlantı Yok (Boş Bırak)</option>
+                  {teams && teams.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -453,7 +479,7 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
 
               {/* Skills Checklist Selection */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Yetkinlik ve Kuyruk Becerileri</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Beceri Etiketleri</label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
                   {availableSkills.map((skill) => {
                     const isChecked = skills.includes(skill);
@@ -510,7 +536,7 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
                   style={{ flex: 1 }}
                 >
                   <Check size={16} /> 
-                  {editingAgent ? 'Güncelle' : 'Temsilci Ekle'}
+                  {editingAgent ? 'Güncelle' : 'Personeli Ekle'}
                 </button>
               </div>
 

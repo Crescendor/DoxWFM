@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Coffee, 
   Clock, 
@@ -18,6 +18,49 @@ export default function MyPortal({ agent, data, showToast, fetchData, currentUse
   const [duration, setDuration] = useState('15');
   const [submitting, setSubmitting] = useState(false);
 
+  // Real-Time Vertical Line Sweeper State
+  const [currentTimePercent, setCurrentTimePercent] = useState(0);
+  const [currentTimeStr, setCurrentTimeStr] = useState('');
+
+  // 15-Minute Daily Slots Maps (Total 96 slots)
+  const slotActivities = {
+    0: { name: 'İzinli (Off)', color: '#1e293b', code: 'OFF' },
+    1: { name: 'Vardiya Çalışması', color: '#3b82f6', code: 'WRK' },
+    2: { name: 'Yemek Molası', color: '#14b8a6', code: 'LCH' },
+    3: { name: 'Kısa Mola', color: '#f59e0b', code: 'BRK' },
+    4: { name: 'Toplantı', color: '#6366f1', code: 'MTG' },
+    5: { name: 'Eğitim', code: 'TRN', color: '#f97316' },
+    6: { name: 'ACW (Çağrı Sonu)', color: '#8b5cf6', code: 'ACW' },
+    7: { name: 'Backoffice', color: '#ec4899', code: 'BOF' }
+  };
+
+  // Convert Slot Index back to Time string
+  const slotToTime = (slot) => {
+    const totalMinutes = slot * 15;
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  };
+
+  // Track the actual clock and calculate positioning percent for the red sweeper line
+  useEffect(() => {
+    const updateLine = () => {
+      const now = new Date();
+      const hrs = now.getHours();
+      const mins = now.getMinutes();
+      const totalMins = hrs * 60 + mins;
+      const percent = (totalMins / 1440) * 100;
+      setCurrentTimePercent(percent);
+      setCurrentTimeStr(`${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}`);
+    };
+
+    updateLine();
+    const interval = setInterval(updateLine, 20000); // update every 20 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const hoursHeader = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+
   if (!agent) {
     return (
       <div style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>
@@ -26,12 +69,38 @@ export default function MyPortal({ agent, data, showToast, fetchData, currentUse
     );
   }
 
-  const agentSchedule = schedules[agent.id] || { weeklyShift: {} };
+  const timeline = schedules[agent.id] || Array(96).fill(0);
   
-  // Find current day name in Turkish to highlight today's shift
+  // Find current day name in Turkish
   const dayNames = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
   const todayName = dayNames[new Date().getDay()];
-  const todayShift = agentSchedule.weeklyShift[todayName] || { type: 'Off', lunch: '', breaks: [] };
+
+  // Calculate dynamic summary stats from 96-slot schedule array
+  const workSlots = timeline.filter(s => s === 1).length;
+  const lunchSlots = timeline.filter(s => s === 2).length;
+  const breakSlots = timeline.filter(s => s === 3).length;
+  const meetingSlots = timeline.filter(s => s === 4).length;
+  const trainingSlots = timeline.filter(s => s === 5).length;
+  const acwSlots = timeline.filter(s => s === 6).length;
+  const backofficeSlots = timeline.filter(s => s === 7).length;
+
+  const totalWorkMin = workSlots * 15;
+  const totalLunchMin = lunchSlots * 15;
+  const totalBreakMin = breakSlots * 15;
+  const totalMeetingMin = meetingSlots * 15;
+  const totalTrainingMin = trainingSlots * 15;
+  
+  const isOffDuty = timeline.every(val => val === 0);
+
+  const formatMinutes = (mins) => {
+    if (mins === 0) return '0 dk';
+    const hrs = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (hrs > 0) {
+      return `${hrs} sa ${m > 0 ? `${m} dk` : ''}`;
+    }
+    return `${m} dk`;
+  };
 
   // Filter requests made by this specific agent
   const myRequests = requests.filter(r => r.agentId === agent.id);
@@ -112,67 +181,174 @@ export default function MyPortal({ agent, data, showToast, fetchData, currentUse
 
         {/* B. Personal Schedule for Today */}
         <section className="glass-panel" style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Calendar color="#6366f1" size={20} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Calendar color="#6366f1" size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Bugünkü Vardiya Çizelgem ({todayName})</h3>
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Gününüzü planlamak için dakika dakika timeline görünümünüz.</span>
+              </div>
             </div>
-            <div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Bugünkü Vardiya Programım ({todayName})</h3>
-              <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Planlı vardiya saatleri, yemek molası ve kısa mola çizelgeniz.</span>
+            {/* Live Indicator time */}
+            <div className="glass-panel" style={{ padding: '6px 12px', background: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', animation: 'state-pulse-OnCall 1.5s infinite' }} />
+              <span>Şimdi: <strong>{currentTimeStr}</strong></span>
             </div>
           </div>
 
-          <div className="glass-panel" style={{ padding: '20px', background: 'rgba(0,0,0,0.15)' }}>
-            {todayShift.type === 'Off' ? (
-              <div style={{ textAlign: 'center', padding: '12px', color: '#94a3b8' }}>
-                <strong>Bugün İzinli Gününüz!</strong> Keyifli dinlenmeler dileriz.
+          {/* Color Legend Keys */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '0.7rem', marginBottom: '20px' }}>
+            {Object.keys(slotActivities).map(key => {
+              const item = slotActivities[key];
+              return (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.02)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: item.color }} />
+                  <span>{item.name}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Timeline Scroll Wrapper */}
+          <div className="glass-panel" style={{ padding: '20px', background: 'rgba(0,0,0,0.15)', overflowX: 'auto', marginBottom: '20px' }}>
+            <div style={{ minWidth: '960px', position: 'relative' }}>
+              
+              {/* Timeline Hours Header */}
+              <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px', marginBottom: '8px' }}>
+                <div style={{ width: '120px', flexShrink: 0 }} /> {/* empty left side offset to align with timeline */}
+                <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(24, 1fr)', textAlign: 'center', fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>
+                  {hoursHeader.map(hr => (
+                    <div key={hr} style={{ borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span>{hr}:00</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {/* 1. Shift Type */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Vardiya Tipi:</span>
-                  <span style={{ 
-                    padding: '4px 10px', 
-                    borderRadius: '8px', 
-                    fontWeight: 700, 
-                    fontSize: '0.8rem',
-                    background: 'rgba(59, 130, 246, 0.15)', 
-                    color: '#60a5fa', 
-                    border: '1px solid rgba(59, 130, 246, 0.3)'
+
+              {/* Main Grid Wrapper with Sweep Red Line */}
+              <div style={{ display: 'flex', alignItems: 'center', height: '48px', position: 'relative' }}>
+                
+                {/* Live Sweeping Red line */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: `calc(120px + (100% - 120px) * ${currentTimePercent / 100})`,
+                  borderLeft: '2px solid #ef4444',
+                  zIndex: 10,
+                  pointerEvents: 'none',
+                  transition: 'left 0.5s ease'
+                }}>
+                  {/* Red indicator tooltip flag */}
+                  <div style={{
+                    position: 'absolute',
+                    top: '-18px',
+                    left: '-20px',
+                    background: '#ef4444',
+                    color: 'white',
+                    fontSize: '0.55rem',
+                    padding: '1px 3px',
+                    borderRadius: '3px',
+                    fontWeight: 700
                   }}>
-                    {todayShift.type}
+                    Şimdi
+                  </div>
+                </div>
+
+                {/* Left Profile label inside the scroll wrapper */}
+                <div style={{ width: '120px', display: 'flex', alignItems: 'center', gap: '8px', padding: '0 8px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '6px',
+                    backgroundColor: agent.avatarColor,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    fontSize: '0.65rem',
+                    color: 'white'
+                  }}>
+                    {agent.avatar}
+                  </div>
+                  <span style={{ fontWeight: 600, fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {agent.name}
                   </span>
                 </div>
 
-                {/* 2. Lunch hour */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Utensils size={16} color="#a78bfa" />
-                    <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Planlı Öğle Yemeği:</span>
-                  </div>
-                  <span style={{ fontWeight: 700, color: '#f8fafc' }}>{todayShift.lunch || 'Belirlenmedi'}</span>
+                {/* Timeline Grid (96 read-only cells) */}
+                <div style={{ flex: 1, height: '100%', display: 'grid', gridTemplateColumns: 'repeat(96, 1fr)', padding: '4px 0' }}>
+                  {timeline.map((actCode, index) => {
+                    const activity = slotActivities[actCode] || slotActivities[0];
+                    const timeSpan = `${slotToTime(index)} - ${slotToTime(index + 1)}`;
+                    
+                    return (
+                      <div 
+                        key={index}
+                        style={{ 
+                          background: activity.color,
+                          borderRight: (index + 1) % 4 === 0 ? '1px solid rgba(255,255,255,0.2)' : 'none', // hourly split
+                          height: '100%',
+                          opacity: 0.9,
+                          transition: 'all 0.15s'
+                        }}
+                        title={`Zaman: ${timeSpan} \nAktivite: ${activity.name}`}
+                      />
+                    );
+                  })}
                 </div>
 
-                {/* 3. Breaks */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Coffee size={16} color="#fbbf24" />
-                    <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Planlı Kısa Molalar:</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    {todayShift.breaks && todayShift.breaks.length > 0 ? (
-                      todayShift.breaks.map(b => (
-                        <span key={b} style={{ fontSize: '0.75rem', fontWeight: 600, background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-glass)' }}>{b}</span>
-                      ))
-                    ) : (
-                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Planlanmadı</span>
-                    )}
-                  </div>
-                </div>
               </div>
-            )}
+
+            </div>
           </div>
+
+          {/* Shift Details and Dynamic Summary Metrics */}
+          {isOffDuty ? (
+            <div className="glass-panel" style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.1)', textAlign: 'center', color: '#94a3b8' }}>
+              <strong>Bugün İzinli Gününüz!</strong> Keyifli dinlenmeler dileriz.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginTop: '16px' }}>
+              
+              <div className="glass-panel" style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>TOPLAM PLANLI ÇALIŞMA</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#60a5fa' }}>{formatMinutes(totalWorkMin)}</span>
+              </div>
+
+              {totalLunchMin > 0 && (
+                <div className="glass-panel" style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>ÖĞLE YEMEĞİ SÜRESİ</span>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#14b8a6' }}>{formatMinutes(totalLunchMin)}</span>
+                </div>
+              )}
+
+              {totalBreakMin > 0 && (
+                <div className="glass-panel" style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>TOPLAM MOLA SÜRESİ</span>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f59e0b' }}>{formatMinutes(totalBreakMin)}</span>
+                </div>
+              )}
+
+              {totalMeetingMin > 0 && (
+                <div className="glass-panel" style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>TOPLANTI / BRİFİNG</span>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#6366f1' }}>{formatMinutes(totalMeetingMin)}</span>
+                </div>
+              )}
+
+              {totalTrainingMin > 0 && (
+                <div className="glass-panel" style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>EĞİTİM / KOÇLUK</span>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f97316' }}>{formatMinutes(totalTrainingMin)}</span>
+                </div>
+              )}
+
+            </div>
+          )}
+
         </section>
 
       </div>
@@ -230,13 +406,13 @@ export default function MyPortal({ agent, data, showToast, fetchData, currentUse
             <button 
               type="submit" 
               className="wfm-btn wfm-btn-primary" 
-              disabled={submitting || todayShift.type === 'Off'}
+              disabled={submitting || isOffDuty}
               style={{ width: '100%', marginTop: '8px' }}
             >
               {submitting ? 'Gönderiliyor...' : 'Talebi Süpervizöre Gönder'}
             </button>
 
-            {todayShift.type === 'Off' && (
+            {isOffDuty && (
               <span style={{ fontSize: '0.7rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
                 <AlertCircle size={10} /> İzinli gününüzde mola talebi gönderemezsiniz.
               </span>
