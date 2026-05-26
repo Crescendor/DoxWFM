@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Plus, Edit, Trash2, Check, X, ShieldAlert } from 'lucide-react';
 
-export default function RoleManager({ data, showToast, fetchData, token }) {
+export default function RoleManager({ data, showToast, fetchData, currentUser, token }) {
   const { roles } = data;
   const [showModal, setShowModal] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
@@ -61,7 +61,7 @@ export default function RoleManager({ data, showToast, fetchData, token }) {
   };
 
   const handleDeleteRole = async (roleId, roleName) => {
-    if (['role-superadmin', 'role-agent'].includes(roleId)) {
+    if (['role-superadmin', 'role-agent'].includes(roleId) && currentUser?.roleId !== 'role-superadmin') {
       showToast("Sistem varsayılan rolleri silinemez.", "error");
       return;
     }
@@ -152,7 +152,7 @@ export default function RoleManager({ data, showToast, fetchData, token }) {
       {/* Roles Cards Grid */}
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
         {roles && roles.map((role) => {
-          const isSystemDefault = ['role-superadmin', 'role-agent'].includes(role.id);
+          const isSystemDefault = ['role-superadmin', 'role-agent'].includes(role.id) && currentUser?.roleId !== 'role-superadmin';
           return (
             <div key={role.id} className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

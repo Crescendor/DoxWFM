@@ -133,7 +133,9 @@ const getInitialData = () => {
     { id: 'log-1', time: '13:00:00', message: 'Doxish WFM Sistemi ilk kurulumu başarıyla tamamlandı.', type: 'admin' }
   ];
 
-  return { roles, teams, agents, schedules, queue, requests, activityLog };
+  const skills = ['Destek', 'Teknik', 'Satış', 'Şikayet', 'Fatura', 'İngilizce', 'Almanca', 'Sosyal Medya'];
+
+  return { roles, teams, agents, schedules, queue, requests, activityLog, skills };
 };
 
 const readDB = () => {
@@ -437,7 +439,8 @@ app.get('/api/data', authenticateToken, (req, res) => {
     schedules: data.schedules,
     queue: data.queue,
     requests: data.requests,
-    activityLog: data.activityLog
+    activityLog: data.activityLog,
+    skills: data.skills || []
   });
 });
 
@@ -476,7 +479,7 @@ app.put('/api/roles/:id', authenticateToken, requirePermission('manage_roles'), 
   const { id } = req.params;
   const { name, description, permissions } = req.body;
 
-  if (['role-superadmin', 'role-agent'].includes(id)) {
+  if (['role-superadmin', 'role-agent'].includes(id) && req.user.roleId !== 'role-superadmin') {
     return res.status(403).json({ error: 'Sistem varsayılan rollerinin izinleri değiştirilemez.' });
   }
 
@@ -498,7 +501,7 @@ app.put('/api/roles/:id', authenticateToken, requirePermission('manage_roles'), 
 app.delete('/api/roles/:id', authenticateToken, requirePermission('manage_roles'), (req, res) => {
   const { id } = req.params;
   
-  if (['role-superadmin', 'role-agent'].includes(id)) {
+  if (['role-superadmin', 'role-agent'].includes(id) && req.user.roleId !== 'role-superadmin') {
     return res.status(403).json({ error: 'Sistem varsayılan rollerini silemezsiniz.' });
   }
 
@@ -632,7 +635,7 @@ app.put('/api/agents/:id', authenticateToken, (req, res) => {
   }
 
   // Security gate
-  if (id === 'superadmin-100' && currentUser.id !== 'superadmin-100') {
+  if (id === 'superadmin-100' && currentUser.id !== 'superadmin-100' && currentUser.roleId !== 'role-superadmin') {
     return res.status(403).json({ error: 'Ana Süper Admin bilgilerini başkası değiştiremez.' });
   }
 
@@ -852,6 +855,102 @@ app.post('/api/reset', authenticateToken, requirePermission('manage_roles'), (re
   const defaultData = getInitialData();
   writeDB(defaultData);
   res.json({ message: 'Database reset successfully', data: defaultData });
+});
+
+// Secure Password Verification (Super Admin and users verification)
+app.post('/api/auth/verify-password', authenticateToken, (req, res) => {
+  const { password } = req.body;
+  if (!password) {
+    return res.status(400).json({ error: 'Şifre girmelisiniz.' });
+  }
+  
+  if (req.user.password === password) {
+    return res.json({ success: true });
+  } else {
+    return res.status(401).json({ error: 'Girdiğiniz Süper Admin şifresi hatalıdır.' });
+  }
+});
+
+// Dynamic Skills CRUD Endpoints
+app.get('/api/skills', authenticateToken, (req, res) => {
+  const data = readDB();
+  res.json(data.skills || []);
+});
+
+app.post('/api/skills', authenticateToken, requirePermission('manage_roles'), (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Beceri adı girmelisiniz.' });
+  }
+
+  const data = readDB();
+  if (!data.skills) data.skills = [];
+
+  const exists = data.skills.some(s => s.toLowerCase() === name.trim().toLowerCase());
+  if (exists) {
+    return res.status(400).json({ error: 'Bu beceri zaten mevcut.' });
+  }
+
+  data.skills.push(name.trim());
+  writeDB(data);
+  res.status(201).json({ skills: data.skills });
+});
+
+app.put('/api/skills/:oldName', authenticateToken, requirePermission('manage_roles'), (req, res) => {
+  const { oldName } = req.params;
+  const { newName } = req.body;
+
+  if (!newName || !newName.trim()) {
+    return res.status(400).json({ error: 'Yeni beceri adı girmelisiniz.' });
+  }
+
+  const data = readDB();
+  if (!data.skills) data.skills = [];
+
+  const index = data.skills.findIndex(s => s.toLowerCase() === oldName.trim().toLowerCase());
+  if (index === -1) {
+    return res.status(404).json({ error: 'Beceri bulunamadı.' });
+  }
+
+  const exists = data.skills.some(s => s.toLowerCase() === newName.trim().toLowerCase() && s.toLowerCase() !== oldName.trim().toLowerCase());
+  if (exists) {
+    return res.status(400).json({ error: 'Bu isimde başka bir beceri zaten mevcut.' });
+  }
+
+  // Update in dynamic skills list
+  data.skills[index] = newName.trim();
+
+  // Migrate all agents that have this skill
+  data.agents.forEach(agent => {
+    if (Array.isArray(agent.skills)) {
+      const sIndex = agent.skills.indexOf(oldName);
+      if (sIndex !== -1) {
+        agent.skills[sIndex] = newName.trim();
+      }
+    }
+  });
+
+  writeDB(data);
+  res.json({ skills: data.skills });
+});
+
+app.delete('/api/skills/:name', authenticateToken, requirePermission('manage_roles'), (req, res) => {
+  const { name } = req.params;
+
+  const data = readDB();
+  if (!data.skills) data.skills = [];
+
+  data.skills = data.skills.filter(s => s.toLowerCase() !== name.trim().toLowerCase());
+
+  // Remove from all agents
+  data.agents.forEach(agent => {
+    if (Array.isArray(agent.skills)) {
+      agent.skills = agent.skills.filter(s => s.toLowerCase() !== name.trim().toLowerCase());
+    }
+  });
+
+  writeDB(data);
+  res.json({ skills: data.skills });
 });
 
 // --- SPA Build Production Static Server ---

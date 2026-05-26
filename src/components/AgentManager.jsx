@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export default function AgentManager({ data, showToast, fetchData, currentUser, token }) {
-  const { agents, roles, teams } = data;
+  const { agents, roles, teams, skills: dynamicSkills } = data;
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState(null);
@@ -28,7 +28,9 @@ export default function AgentManager({ data, showToast, fetchData, currentUser, 
   const [skills, setSkills] = useState(['Destek']);
   const [avatarColor, setAvatarColor] = useState('#3b82f6');
 
-  const availableSkills = ['Destek', 'Teknik', 'Satış', 'Şikayet', 'Fatura', 'İngilizce', 'Almanca', 'Sosyal Medya'];
+  const availableSkills = dynamicSkills && dynamicSkills.length > 0 
+    ? dynamicSkills 
+    : ['Destek', 'Teknik', 'Satış', 'Şikayet', 'Fatura', 'İngilizce', 'Almanca', 'Sosyal Medya'];
   const colorPresets = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#f97316', '#14b8a6', '#6366f1'];
 
   const toggleSkill = (skill) => {

@@ -20,6 +20,7 @@ import MyPortal from './components/MyPortal.jsx';
 import Login from './components/Login.jsx';
 import RoleManager from './components/RoleManager.jsx';
 import TeamManager from './components/TeamManager.jsx';
+import SystemSettings from './components/SystemSettings.jsx';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('doxwfm_token') || null);
@@ -374,6 +375,17 @@ export default function App() {
               </button>
             )}
 
+            {currentUser.roleId === 'role-superadmin' && (
+              <button 
+                onClick={() => setActiveTab('settings')}
+                className={`wfm-btn ${activeTab === 'settings' ? 'wfm-btn-primary' : 'wfm-btn-secondary'}`}
+                style={{ width: '100%', justifyContent: 'flex-start' }}
+              >
+                <RefreshCw size={18} />
+                <span>Sistem Ayarları</span>
+              </button>
+            )}
+
             {permissions.view_personal_only && (
               <button 
                 onClick={() => setActiveTab('portal')}
@@ -426,17 +438,6 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            {currentUser.roleId === 'role-superadmin' && (
-              <button 
-                onClick={handleResetData}
-                className="wfm-btn wfm-btn-secondary" 
-                style={{ padding: '10px', minWidth: '40px' }}
-                title="Tüm Sistemi Sıfırla"
-              >
-                <RefreshCw size={16} />
-              </button>
-            )}
-            
             <button 
               onClick={handleLogout}
               className="wfm-btn wfm-btn-danger"
@@ -538,7 +539,15 @@ export default function App() {
             data={data} 
             showToast={showToast}
             fetchData={fetchData}
-            currentUser={currentUser}
+            token={token}
+          />
+        )}
+
+        {activeTab === 'settings' && currentUser.roleId === 'role-superadmin' && (
+          <SystemSettings 
+            data={data} 
+            showToast={showToast}
+            fetchData={fetchData}
             token={token}
           />
         )}
