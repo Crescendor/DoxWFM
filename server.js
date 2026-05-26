@@ -369,6 +369,11 @@ app.post('/api/auth/login', (req, res) => {
 
   const token = `wfm-token-session-${user.id}`;
   
+  // Find role and attach permissions + roleName so the frontend instantly registers user privileges
+  const role = data.roles.find(r => r.id === user.roleId);
+  const permissions = role ? role.permissions : {};
+  const roleName = role ? role.name : 'Unknown';
+  
   res.json({
     token,
     user: {
@@ -377,7 +382,9 @@ app.post('/api/auth/login', (req, res) => {
       roleId: user.roleId,
       username: user.username,
       avatar: user.avatar,
-      avatarColor: user.avatarColor
+      avatarColor: user.avatarColor,
+      permissions,
+      roleName
     }
   });
 });
