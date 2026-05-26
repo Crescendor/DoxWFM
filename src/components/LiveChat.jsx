@@ -235,7 +235,7 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
           style={{
             position: 'fixed',
             bottom: '24px',
-            left: '320px',
+            right: '24px',
             zIndex: 9999,
             width: '56px',
             height: '56px',
@@ -294,7 +294,7 @@ export default function LiveChat({ data, currentUser, token, fetchData, showToas
           style={{
             position: 'fixed',
             bottom: '24px',
-            left: '320px',
+            right: '24px',
             zIndex: 9999,
             width: '660px',
             height: '490px',
