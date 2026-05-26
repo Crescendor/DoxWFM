@@ -21,6 +21,7 @@ import Login from './components/Login.jsx';
 import RoleManager from './components/RoleManager.jsx';
 import TeamManager from './components/TeamManager.jsx';
 import SystemSettings from './components/SystemSettings.jsx';
+import LiveChat from './components/LiveChat.jsx';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('doxwfm_token') || null);
@@ -563,6 +564,17 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Live Chat Widget */}
+      {currentUser && (
+        <LiveChat 
+          data={data}
+          currentUser={currentUser}
+          token={token}
+          fetchData={fetchData}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 }

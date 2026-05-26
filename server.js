@@ -135,7 +135,29 @@ const getInitialData = () => {
 
   const skills = ['Destek', 'Teknik', 'Satış', 'Şikayet', 'Fatura', 'İngilizce', 'Almanca', 'Sosyal Medya'];
 
-  return { roles, teams, agents, schedules, queue, requests, activityLog, skills };
+  const chatRooms = [
+    {
+      id: 'room-general',
+      name: 'Genel Sohbet',
+      allowedRoles: [],
+      allowedTeams: [],
+      allowedAgents: [],
+      createdById: 'system',
+      messages: [
+        {
+          id: 'msg-init-1',
+          senderId: 'system',
+          senderName: 'Sistem',
+          senderAvatar: 'WF',
+          senderAvatarColor: '#3b82f6',
+          text: 'DoxWFM Canlı Sohbet Odasına Hoş Geldiniz!',
+          timestamp: new Date().toISOString()
+        }
+      ]
+    }
+  ];
+
+  return { roles, teams, agents, schedules, queue, requests, activityLog, skills, chatRooms };
 };
 
 const readDB = () => {
@@ -440,7 +462,8 @@ app.get('/api/data', authenticateToken, (req, res) => {
     queue: data.queue,
     requests: data.requests,
     activityLog: data.activityLog,
-    skills: data.skills || []
+    skills: data.skills || [],
+    chatRooms: data.chatRooms || []
   });
 });
 
@@ -951,6 +974,120 @@ app.delete('/api/skills/:name', authenticateToken, requirePermission('manage_rol
 
   writeDB(data);
   res.json({ skills: data.skills });
+});
+
+// --- Live Chat Endpoints ---
+
+// Create a new room (Requires manage_teams permission or manager role)
+app.post('/api/chat/rooms', authenticateToken, (req, res) => {
+  const { name, allowedRoles, allowedTeams, allowedAgents } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Oda adı boş bırakılamaz.' });
+  }
+
+  const isAuthorized = req.user.roleId === 'role-superadmin' || 
+                       req.user.roleId === 'role-admin' || 
+                       req.user.roleId === 'role-teamleader' || 
+                       req.user.permissions?.manage_teams;
+
+  if (!isAuthorized) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz bulunmamaktadır.' });
+  }
+
+  const data = readDB();
+  if (!data.chatRooms) data.chatRooms = [];
+
+  const newRoom = {
+    id: `room-${Date.now()}`,
+    name: name.trim(),
+    allowedRoles: allowedRoles || [],
+    allowedTeams: allowedTeams || [],
+    allowedAgents: allowedAgents || [],
+    createdById: req.user.id,
+    messages: []
+  };
+
+  data.chatRooms.push(newRoom);
+  writeDB(data);
+  res.status(201).json(newRoom);
+});
+
+// Delete a room
+app.delete('/api/chat/rooms/:roomId', authenticateToken, (req, res) => {
+  const { roomId } = req.params;
+  if (roomId === 'room-general') {
+    return res.status(403).json({ error: 'Genel Sohbet odası silinemez.' });
+  }
+
+  const isAuthorized = req.user.roleId === 'role-superadmin' || 
+                       req.user.roleId === 'role-admin' || 
+                       req.user.permissions?.manage_teams;
+
+  if (!isAuthorized) {
+    return res.status(403).json({ error: 'Bu odayı silme yetkiniz bulunmamaktadır.' });
+  }
+
+  const data = readDB();
+  if (!data.chatRooms) data.chatRooms = [];
+
+  const index = data.chatRooms.findIndex(r => r.id === roomId);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Sohbet odası bulunamadı.' });
+  }
+
+  data.chatRooms = data.chatRooms.filter(r => r.id !== roomId);
+  writeDB(data);
+  res.json({ message: 'Oda başarıyla silindi.' });
+});
+
+// Send a message inside a room
+app.post('/api/chat/rooms/:roomId/messages', authenticateToken, (req, res) => {
+  const { roomId } = req.params;
+  const { text } = req.body;
+
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Mesaj içeriği boş olamaz.' });
+  }
+
+  const data = readDB();
+  if (!data.chatRooms) data.chatRooms = [];
+
+  const room = data.chatRooms.find(r => r.id === roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Sohbet odası bulunamadı.' });
+  }
+
+  // Visibility authorization checks
+  const roleMatch = room.allowedRoles.length === 0 || room.allowedRoles.includes(req.user.roleId);
+  const teamMatch = room.allowedTeams.length === 0 || room.allowedTeams.includes(req.user.teamId);
+  const agentMatch = room.allowedAgents.length === 0 || room.allowedAgents.includes(req.user.id);
+
+  // Super Admin can always access
+  const isSuperAdmin = req.user.roleId === 'role-superadmin';
+
+  if (!isSuperAdmin && !(roleMatch && teamMatch) && !agentMatch) {
+    return res.status(403).json({ error: 'Bu odaya mesaj gönderme yetkiniz bulunmuyor.' });
+  }
+
+  const avatar = req.user.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  const newMessage = {
+    id: `msg-${Date.now()}-${Math.random()}`,
+    senderId: req.user.id,
+    senderName: req.user.name,
+    senderAvatar: avatar,
+    senderAvatarColor: req.user.avatarColor || '#1e293b',
+    text: text.trim(),
+    timestamp: new Date().toISOString()
+  };
+
+  room.messages.push(newMessage);
+  
+  if (room.messages.length > 100) {
+    room.messages.shift();
+  }
+
+  writeDB(data);
+  res.status(201).json(newMessage);
 });
 
 // --- SPA Build Production Static Server ---
