@@ -12,7 +12,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-export default function MyPortal({ agent, data, showToast, fetchData }) {
+export default function MyPortal({ agent, data, showToast, fetchData, currentUser, token }) {
   const { schedules, requests } = data;
   const [requestType, setRequestType] = useState('Mola');
   const [duration, setDuration] = useState('15');
@@ -42,7 +42,10 @@ export default function MyPortal({ agent, data, showToast, fetchData }) {
     try {
       const res = await fetch('/api/requests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           agentId: agent.id,
           type: requestType,

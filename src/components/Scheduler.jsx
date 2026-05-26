@@ -10,7 +10,7 @@ import {
   Plus
 } from 'lucide-react';
 
-export default function Scheduler({ data, showToast, fetchData }) {
+export default function Scheduler({ data, showToast, fetchData, currentUser, token }) {
   const { agents, schedules } = data;
   const [editingCell, setEditingCell] = useState(null); // { agentId, day, agentName, currentShift }
   
@@ -63,7 +63,10 @@ export default function Scheduler({ data, showToast, fetchData }) {
     try {
       const res = await fetch(`/api/schedule/${agentId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ weeklyShift: updatedWeeklyShift })
       });
 

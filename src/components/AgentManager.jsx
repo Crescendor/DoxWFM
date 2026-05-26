@@ -5,21 +5,24 @@ import {
   Trash2, 
   Edit, 
   Star, 
-  Languages, 
   Check, 
   X,
-  Search
+  Search,
+  Lock,
+  User as UserIcon
 } from 'lucide-react';
 
-export default function AgentManager({ data, showToast, fetchData }) {
+export default function AgentManager({ data, showToast, fetchData, currentUser, token }) {
   const { agents } = data;
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingAgent, setEditingAgent] = useState(null); // agent object if editing
+  const [editingAgent, setEditingAgent] = useState(null);
 
   // Form States
   const [name, setName] = useState('');
   const [role, setRole] = useState('agent');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [skills, setSkills] = useState(['Destek']);
   const [avatarColor, setAvatarColor] = useState('#3b82f6');
 
@@ -37,6 +40,8 @@ export default function AgentManager({ data, showToast, fetchData }) {
   const handleOpenAdd = () => {
     setName('');
     setRole('agent');
+    setUsername('');
+    setPassword('');
     setSkills(['Destek']);
     setAvatarColor('#3b82f6');
     setEditingAgent(null);
@@ -47,20 +52,30 @@ export default function AgentManager({ data, showToast, fetchData }) {
     setEditingAgent(agent);
     setName(agent.name);
     setRole(agent.role);
+    setUsername(agent.username || '');
+    setPassword(''); // Leave password empty initially during edit
     setSkills(agent.skills);
     setAvatarColor(agent.avatarColor);
     setShowAddModal(true);
   };
 
   const handleDeleteAgent = async (agentId, agentName) => {
-    if (!window.confirm(`${agentName} isimli temsilciyi kalıcı olarak silmek istiyor musunuz?`)) return;
+    if (currentUser.role !== 'superadmin') {
+      showToast("Temsilci silme yetkiniz bulunmamaktadır. Yalnızca Süper Admin silebilir.", "error");
+      return;
+    }
+    if (!window.confirm(`${agentName} isimli temsilciyi sistemden kalıcı olarak silmek istiyor musunuz?`)) return;
     try {
       const res = await fetch(`/api/agents/${agentId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         showToast("Temsilci başarıyla silindi", "success");
         fetchData();
+      } else {
+        const errData = await res.json();
+        showToast(errData.error || "Silme işlemi başarısız.", "error");
       }
     } catch (err) {
       showToast("Temsilci silinemedi", "error");
@@ -70,8 +85,21 @@ export default function AgentManager({ data, showToast, fetchData }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) return showToast("Lütfen bir isim girin", "error");
+    if (!username.trim()) return showToast("Lütfen bir kullanıcı adı girin", "error");
+    if (!editingAgent && !password.trim()) return showToast("Lütfen bir giriş şifresi belirleyin", "error");
 
-    const payload = { name, role, skills, avatarColor };
+    const payload = { 
+      name, 
+      role, 
+      skills, 
+      avatarColor,
+      username: username.trim()
+    };
+
+    // Only include password if provided (handles optional password update during edit)
+    if (password.trim()) {
+      payload.password = password.trim();
+    }
 
     try {
       let res;
@@ -79,14 +107,20 @@ export default function AgentManager({ data, showToast, fetchData }) {
         // Edit Mode
         res = await fetch(`/api/agents/${editingAgent.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify(payload)
         });
       } else {
         // Add Mode
         res = await fetch('/api/agents', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify(payload)
         });
       }
@@ -99,16 +133,17 @@ export default function AgentManager({ data, showToast, fetchData }) {
         setShowAddModal(false);
         fetchData();
       } else {
-        showToast("İşlem başarısız oldu", "error");
+        const errData = await res.json();
+        showToast(errData.error || "İşlem başarısız oldu", "error");
       }
     } catch (err) {
       showToast("Sunucu hatası oluştu", "error");
     }
   };
 
-  // Filter agents based on search query
   const filteredAgents = agents.filter(a => 
     a.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (a.username && a.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
     a.skills.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -124,7 +159,7 @@ export default function AgentManager({ data, showToast, fetchData }) {
             type="text" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="İsim veya yetkinlik ara..."
+            placeholder="İsim, kullanıcı adı veya yetkinlik ara..."
             className="wfm-input"
             style={{ paddingLeft: '40px' }}
           />
@@ -147,7 +182,7 @@ export default function AgentManager({ data, showToast, fetchData }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
           <thead>
             <tr style={{ borderBottom: '2px solid var(--border-glass-bright)', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600, uppercase: 'true' }}>
-              <th style={{ padding: '12px 16px' }}>Profil</th>
+              <th style={{ padding: '12px 16px' }}>Profil & Kullanıcı Adı</th>
               <th style={{ padding: '12px 16px' }}>Rol</th>
               <th style={{ padding: '12px 16px' }}>Yetkinlik ve Beceriler</th>
               <th style={{ padding: '12px 16px' }}>Durum</th>
@@ -194,7 +229,7 @@ export default function AgentManager({ data, showToast, fetchData }) {
                       </div>
                       <div>
                         <span style={{ fontWeight: 600, display: 'block', fontSize: '0.85rem' }}>{agent.name}</span>
-                        <span style={{ fontSize: '0.65rem', color: '#64748b' }}>ID: {agent.id}</span>
+                        <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Kullanıcı: <strong>{agent.username || 'Yok'}</strong></span>
                       </div>
                     </div>
                   </td>
@@ -207,11 +242,20 @@ export default function AgentManager({ data, showToast, fetchData }) {
                       textTransform: 'uppercase',
                       padding: '4px 8px',
                       borderRadius: '6px',
-                      background: agent.role === 'supervisor' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                      color: agent.role === 'supervisor' ? '#f87171' : '#60a5fa',
-                      border: agent.role === 'supervisor' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(59, 130, 246, 0.2)'
+                      background: 
+                        agent.role === 'superadmin' ? 'rgba(139, 92, 246, 0.1)' : 
+                        agent.role === 'supervisor' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                      color: 
+                        agent.role === 'superadmin' ? '#c084fc' : 
+                        agent.role === 'supervisor' ? '#f87171' : '#60a5fa',
+                      border: 
+                        agent.role === 'superadmin' ? '1px solid rgba(139, 92, 246, 0.2)' : 
+                        agent.role === 'supervisor' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(59, 130, 246, 0.2)'
                     }}>
-                      {agent.role === 'supervisor' ? 'Süpervizör' : 'Temsilci'}
+                      {
+                        agent.role === 'superadmin' ? 'Süper Admin' :
+                        agent.role === 'supervisor' ? 'Süpervizör' : 'Temsilci'
+                      }
                     </span>
                   </td>
 
@@ -267,11 +311,19 @@ export default function AgentManager({ data, showToast, fetchData }) {
                       >
                         <Edit size={14} />
                       </button>
+                      
+                      {/* Only superadmin can delete users, disable for supervisor */}
                       <button 
                         onClick={() => handleDeleteAgent(agent.id, agent.name)}
                         className="wfm-btn wfm-btn-danger" 
-                        style={{ padding: '6px 10px', borderRadius: '6px' }}
-                        title="Sil"
+                        style={{ 
+                          padding: '6px 10px', 
+                          borderRadius: '6px',
+                          opacity: currentUser.role !== 'superadmin' ? 0.3 : 1,
+                          cursor: currentUser.role !== 'superadmin' ? 'not-allowed' : 'pointer'
+                        }}
+                        disabled={currentUser.role !== 'superadmin'}
+                        title={currentUser.role === 'superadmin' ? "Sil" : "Sadece Süper Admin Silebilir"}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -308,11 +360,11 @@ export default function AgentManager({ data, showToast, fetchData }) {
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               
               {/* Name Input */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Temsilci Adı Soyadı</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>Temsilci Adı Soyadı</label>
                 <input 
                   type="text" 
                   value={name}
@@ -323,31 +375,71 @@ export default function AgentManager({ data, showToast, fetchData }) {
                 />
               </div>
 
+              {/* Username & Password credentials */}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>Kullanıcı Adı</label>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      type="text" 
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="kullanici"
+                      className="wfm-input"
+                      style={{ paddingLeft: '32px' }}
+                      required
+                    />
+                    <UserIcon size={12} style={{ position: 'absolute', left: '10px', top: '13px', color: '#64748b' }} />
+                  </div>
+                </div>
+                
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>
+                    {editingAgent ? 'Yeni Şifre (İsteğe Bağlı)' : 'Giriş Şifresi'}
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      type="password" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={editingAgent ? "Değişmeyecekse boş bırakın" : "şifre"}
+                      className="wfm-input"
+                      style={{ paddingLeft: '32px' }}
+                      required={!editingAgent}
+                    />
+                    <Lock size={12} style={{ position: 'absolute', left: '10px', top: '13px', color: '#64748b' }} />
+                  </div>
+                </div>
+              </div>
+
               {/* Role Selection */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Sistem Rolü</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>Sistem Rolü Yetki Kademesi</label>
                 <select 
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   className="wfm-select"
                 >
-                  <option value="agent">Müşteri Temsilcisi (Agent)</option>
-                  <option value="supervisor">Süpervizör (Supervisor)</option>
+                  <option value="agent">Müşteri Temsilcisi (Agent Portal)</option>
+                  <option value="supervisor">Süpervizör (Admin Dashboard)</option>
+                  {currentUser.role === 'superadmin' && (
+                    <option value="superadmin">Süper Admin (Tam Yetki)</option>
+                  )}
                 </select>
               </div>
 
               {/* Avatar Color Preset Selection */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '8px' }}>Profil Rengi</label>
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Profil Rengi</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
                   {colorPresets.map(color => (
                     <button
                       key={color}
                       type="button"
                       onClick={() => setAvatarColor(color)}
                       style={{
-                        width: '28px',
-                        height: '28px',
+                        width: '24px',
+                        height: '24px',
                         borderRadius: '6px',
                         backgroundColor: color,
                         border: avatarColor === color ? '2px solid white' : '1px solid transparent',
@@ -361,8 +453,8 @@ export default function AgentManager({ data, showToast, fetchData }) {
 
               {/* Skills Checklist Selection */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '8px' }}>Yetkinlik ve Kuyruk Becerileri</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Yetkinlik ve Kuyruk Becerileri</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
                   {availableSkills.map((skill) => {
                     const isChecked = skills.includes(skill);
                     return (
@@ -373,27 +465,27 @@ export default function AgentManager({ data, showToast, fetchData }) {
                           display: 'flex',
                           alignItems: 'center',
                           gap: '8px',
-                          padding: '8px 12px',
-                          borderRadius: '8px',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
                           background: isChecked ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255,255,255,0.02)',
                           border: isChecked ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border-glass)',
                           cursor: 'pointer',
-                          fontSize: '0.8rem',
+                          fontSize: '0.75rem',
                           fontWeight: isChecked ? 600 : 400,
                           transition: 'all 0.2s'
                         }}
                       >
                         <div style={{
-                          width: '16px',
-                          height: '16px',
-                          borderRadius: '4px',
+                          width: '14px',
+                          height: '14px',
+                          borderRadius: '3px',
                           border: '1px solid var(--border-glass-bright)',
                           background: isChecked ? '#3b82f6' : 'transparent',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center'
                         }}>
-                          {isChecked && <Check size={10} color="white" />}
+                          {isChecked && <Check size={8} color="white" />}
                         </div>
                         <span>{skill}</span>
                       </div>
@@ -403,7 +495,7 @@ export default function AgentManager({ data, showToast, fetchData }) {
               </div>
 
               {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
                 <button 
                   type="button" 
                   onClick={() => setShowAddModal(false)}

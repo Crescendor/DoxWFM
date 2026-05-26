@@ -17,25 +17,55 @@ const DB_PATH = path.join(__dirname, 'database.json');
 
 // --- Helper Functions to Read/Write DB ---
 const getInitialData = () => {
+  // Pre-seeded agents, now with strict username and password credentials
   const agents = [
-    { id: 'agt-101', name: 'Ahmet Yılmaz', role: 'agent', state: 'Available', stateDuration: 120, avatar: 'AY', avatarColor: '#3b82f6', skills: ['Destek', 'Teknik'], rating: 4.8, stats: { calls: 24, aht: 210, sla: 95, loginTime: '06:12:00' } },
-    { id: 'agt-102', name: 'Elif Demir', role: 'agent', state: 'On Call', stateDuration: 45, avatar: 'ED', avatarColor: '#10b981', skills: ['Satış', 'İngilizce'], rating: 4.5, stats: { calls: 18, aht: 185, sla: 88, loginTime: '06:15:00' } },
-    { id: 'agt-103', name: 'Can Kaya', role: 'agent', state: 'ACW', stateDuration: 12, avatar: 'CK', avatarColor: '#8b5cf6', skills: ['Destek', 'Şikayet'], rating: 4.2, stats: { calls: 20, aht: 245, sla: 82, loginTime: '06:22:00' } },
-    { id: 'agt-104', name: 'Zeynep Çelik', role: 'agent', state: 'Break', stateDuration: 340, avatar: 'ZC', avatarColor: '#f59e0b', skills: ['Fatura', 'Destek'], rating: 4.9, stats: { calls: 15, aht: 170, sla: 98, loginTime: '07:02:00' } },
-    { id: 'agt-105', name: 'Merve Şahin', role: 'agent', state: 'Available', stateDuration: 310, avatar: 'MŞ', avatarColor: '#ec4899', skills: ['Teknik', 'Destek'], rating: 4.6, stats: { calls: 22, aht: 225, sla: 92, loginTime: '06:45:00' } },
-    { id: 'agt-106', name: 'Burak Aslan', role: 'agent', state: 'On Call', stateDuration: 180, avatar: 'BA', avatarColor: '#f97316', skills: ['Şikayet', 'Satış'], rating: 4.4, stats: { calls: 19, aht: 205, sla: 87, loginTime: '06:30:00' } },
-    { id: 'agt-107', name: 'Selin Öztürk', role: 'agent', state: 'Lunch', stateDuration: 1220, avatar: 'SÖ', avatarColor: '#14b8a6', skills: ['İngilizce', 'Fatura'], rating: 4.7, stats: { calls: 12, aht: 195, sla: 94, loginTime: '07:15:00' } },
-    { id: 'agt-108', name: 'Emre Koç', role: 'agent', state: 'Meeting', stateDuration: 900, avatar: 'EK', avatarColor: '#6366f1', skills: ['Almanca', 'Destek'], rating: 4.1, stats: { calls: 8, aht: 280, sla: 80, loginTime: '08:00:00' } },
-    { id: 'agt-109', name: 'Gamze Polat', role: 'agent', state: 'Available', stateDuration: 15, avatar: 'GP', avatarColor: '#06b6d4', skills: ['Destek', 'Sosyal Medya'], rating: 4.3, stats: { calls: 16, aht: 230, sla: 89, loginTime: '07:45:00' } },
-    { id: 'agt-110', name: 'Deniz Aksu', role: 'agent', state: 'Offline', stateDuration: 0, avatar: 'DA', avatarColor: '#64748b', skills: ['Fatura', 'Şikayet'], rating: 4.5, stats: { calls: 0, aht: 0, sla: 0, loginTime: '00:00:00' } },
-    { id: 'sup-201', name: 'Kaan Demir', role: 'supervisor', state: 'Available', stateDuration: 420, avatar: 'KD', avatarColor: '#ef4444', skills: ['Yönetim', 'Süpervizör'], rating: 4.9, stats: { calls: 2, aht: 120, sla: 100, loginTime: '06:00:00' } }
+    // Super Admin
+    { 
+      id: 'superadmin-100', 
+      name: 'Doxish Super Admin', 
+      role: 'superadmin', 
+      username: 'Doxish', 
+      password: 'DoxWFM44.', 
+      state: 'Available', 
+      stateDuration: 420, 
+      avatar: 'DX', 
+      avatarColor: '#6366f1', 
+      skills: ['Yönetim', 'Süpervizör', 'Sistem'], 
+      rating: 5.0, 
+      stats: { calls: 0, aht: 0, sla: 100, loginTime: '06:00:00' } 
+    },
+    // Supervisor
+    { 
+      id: 'sup-201', 
+      name: 'Kaan Demir', 
+      role: 'supervisor', 
+      username: 'kaan', 
+      password: 'doxwfm123', 
+      state: 'Available', 
+      stateDuration: 120, 
+      avatar: 'KD', 
+      avatarColor: '#ef4444', 
+      skills: ['Yönetim', 'Destek'], 
+      rating: 4.9, 
+      stats: { calls: 2, aht: 120, sla: 100, loginTime: '06:00:00' } 
+    },
+    // Standard Agents
+    { id: 'agt-101', name: 'Ahmet Yılmaz', role: 'agent', username: 'ahmet', password: 'doxwfm123', state: 'Available', stateDuration: 240, avatar: 'AY', avatarColor: '#3b82f6', skills: ['Destek', 'Teknik'], rating: 4.8, stats: { calls: 24, aht: 210, sla: 95, loginTime: '06:12:00' } },
+    { id: 'agt-102', name: 'Elif Demir', role: 'agent', username: 'elif', password: 'doxwfm123', state: 'On Call', stateDuration: 45, avatar: 'ED', avatarColor: '#10b981', skills: ['Satış', 'İngilizce'], rating: 4.5, stats: { calls: 18, aht: 185, sla: 88, loginTime: '06:15:00' } },
+    { id: 'agt-103', name: 'Can Kaya', role: 'agent', username: 'can', password: 'doxwfm123', state: 'ACW', stateDuration: 12, avatar: 'CK', avatarColor: '#8b5cf6', skills: ['Destek', 'Şikayet'], rating: 4.2, stats: { calls: 20, aht: 245, sla: 82, loginTime: '06:22:00' } },
+    { id: 'agt-104', name: 'Zeynep Çelik', role: 'agent', username: 'zeynep', password: 'doxwfm123', state: 'Break', stateDuration: 340, avatar: 'ZC', avatarColor: '#f59e0b', skills: ['Fatura', 'Destek'], rating: 4.9, stats: { calls: 15, aht: 170, sla: 98, loginTime: '07:02:00' } },
+    { id: 'agt-105', name: 'Merve Şahin', role: 'agent', username: 'merve', password: 'doxwfm123', state: 'Available', stateDuration: 310, avatar: 'MŞ', avatarColor: '#ec4899', skills: ['Teknik', 'Destek'], rating: 4.6, stats: { calls: 22, aht: 225, sla: 92, loginTime: '06:45:00' } },
+    { id: 'agt-106', name: 'Burak Aslan', role: 'agent', username: 'burak', password: 'doxwfm123', state: 'On Call', stateDuration: 180, avatar: 'BA', avatarColor: '#f97316', skills: ['Şikayet', 'Satış'], rating: 4.4, stats: { calls: 19, aht: 205, sla: 87, loginTime: '06:30:00' } },
+    { id: 'agt-107', name: 'Selin Öztürk', role: 'agent', username: 'selin', password: 'doxwfm123', state: 'Lunch', stateDuration: 1220, avatar: 'SÖ', avatarColor: '#14b8a6', skills: ['İngilizce', 'Fatura'], rating: 4.7, stats: { calls: 12, aht: 195, sla: 94, loginTime: '07:15:00' } },
+    { id: 'agt-108', name: 'Emre Koç', role: 'agent', username: 'emre', password: 'doxwfm123', state: 'Meeting', stateDuration: 900, avatar: 'EK', avatarColor: '#6366f1', skills: ['Almanca', 'Destek'], rating: 4.1, stats: { calls: 8, aht: 280, sla: 80, loginTime: '08:00:00' } },
+    { id: 'agt-109', name: 'Gamze Polat', role: 'agent', username: 'gamze', password: 'doxwfm123', state: 'Available', stateDuration: 15, avatar: 'GP', avatarColor: '#06b6d4', skills: ['Destek', 'Sosyal Medya'], rating: 4.3, stats: { calls: 16, aht: 230, sla: 89, loginTime: '07:45:00' } },
+    { id: 'agt-110', name: 'Deniz Aksu', role: 'agent', username: 'deniz', password: 'doxwfm123', state: 'Offline', stateDuration: 0, avatar: 'DA', avatarColor: '#64748b', skills: ['Fatura', 'Şikayet'], rating: 4.5, stats: { calls: 0, aht: 0, sla: 0, loginTime: '00:00:00' } }
   ];
 
   const initialSchedules = {};
-  const today = new Date().toISOString().split('T')[0];
   
   agents.forEach(agent => {
-    // Generate simple weekly schedule starting today
+    // Generate weekly shifts
     initialSchedules[agent.id] = {
       agentId: agent.id,
       agentName: agent.name,
@@ -52,13 +82,13 @@ const getInitialData = () => {
   });
 
   const queue = {
-    callsWaiting: 3,
-    maxWaitTime: 45,
-    sla: 89.4,
-    totalCalls: 179,
-    handledCalls: 161,
+    callsWaiting: 2,
+    maxWaitTime: 25,
+    sla: 90.2,
+    totalCalls: 182,
+    handledCalls: 165,
     abandonedCalls: 15,
-    occupancy: 78.5,
+    occupancy: 81.3,
     targetSla: 85
   };
 
@@ -99,8 +129,54 @@ const writeDB = (data) => {
   }
 };
 
+// Auto-seed/migrate DB on server boot if superadmin is not present!
+(() => {
+  const data = readDB();
+  const hasSuperAdmin = data.agents.some(a => a.role === 'superadmin' && a.username === 'Doxish');
+  if (!hasSuperAdmin) {
+    console.log("Database migration: Pre-seeding Doxish Super Admin...");
+    const resetData = getInitialData();
+    writeDB(resetData);
+  }
+})();
+
+// --- Authentication Middleware ---
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ error: 'Auth token is missing' });
+
+  // Simple token format: `wfm-token-session-[userId]`
+  const tokenParts = token.split('-session-');
+  if (tokenParts.length !== 2 || tokenParts[0] !== 'wfm-token') {
+    return res.status(403).json({ error: 'Invalid authentication session' });
+  }
+
+  const userId = tokenParts[1];
+  const data = readDB();
+  const user = data.agents.find(a => a.id === userId);
+
+  if (!user) return res.status(403).json({ error: 'User session not found' });
+
+  // Attach session user to the request object
+  req.user = user;
+  next();
+};
+
+// Role Checking helper middleware
+const requireRole = (allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+    
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Yetkiniz yetersiz. Bu işlem süpervizör veya yönetici izni gerektirir.' });
+    }
+    next();
+  };
+};
+
 // --- Live Call Center Background Simulator ---
-// This background loop simulates dynamic, real-time call center activity to show off the UI beautifully!
 setInterval(() => {
   const data = readDB();
   let updated = false;
@@ -128,20 +204,17 @@ setInterval(() => {
         }
       } else if (oldState === 'On Call') {
         if (roll < 0.80) {
-          newState = 'ACW'; // After Call Work
+          newState = 'ACW';
         } else {
           newState = 'Available';
         }
-        // Increment calls handled when call finishes
         agent.stats.calls += 1;
         data.queue.handledCalls += 1;
         data.queue.totalCalls += 1;
         
-        // Add random call to calculate AHT
-        const callDuration = Math.floor(Math.random() * 120) + 90; // 90-210 sec
+        const callDuration = Math.floor(Math.random() * 120) + 90;
         agent.stats.aht = Math.round((agent.stats.aht * (agent.stats.calls - 1) + callDuration) / agent.stats.calls);
         
-        // SLA update simulation
         const callAnsweredInTime = Math.random() < 0.90;
         if (callAnsweredInTime) {
           agent.stats.sla = Math.round((agent.stats.sla * (agent.stats.calls - 1) + 100) / agent.stats.calls);
@@ -150,7 +223,7 @@ setInterval(() => {
         }
       } else if (oldState === 'ACW') {
         newState = 'Available';
-      } else if (oldState === 'Break' && agent.stateDuration > 300) { // Auto return from break after a while in simulator
+      } else if (oldState === 'Break' && agent.stateDuration > 300) {
         newState = 'Available';
       } else if (oldState === 'Training' && agent.stateDuration > 600) {
         newState = 'Available';
@@ -160,7 +233,6 @@ setInterval(() => {
         agent.state = newState;
         agent.stateDuration = 0;
         
-        // Log the activity
         const timeStr = new Date().toTimeString().split(' ')[0];
         data.activityLog.unshift({
           id: `log-${Date.now()}-${Math.random()}`,
@@ -169,7 +241,6 @@ setInterval(() => {
           type: 'state'
         });
         
-        // Keep logs capped at 30 entries
         if (data.activityLog.length > 30) {
           data.activityLog.pop();
         }
@@ -181,24 +252,20 @@ setInterval(() => {
   // 3. Queue Simulation
   const queueRoll = Math.random();
   if (queueRoll < 0.35) {
-    // New Call arrives
     data.queue.callsWaiting += 1;
     data.queue.totalCalls += 1;
     updated = true;
   } else if (queueRoll < 0.70 && data.queue.callsWaiting > 0) {
-    // Call is answered by available agents
     const availableCount = data.agents.filter(a => a.state === 'Available' && a.role === 'agent').length;
     if (availableCount > 0) {
       data.queue.callsWaiting -= 1;
       
-      // Select a random available agent to answer the call
       const availableAgents = data.agents.filter(a => a.state === 'Available' && a.role === 'agent');
       const luckyAgent = availableAgents[Math.floor(Math.random() * availableAgents.length)];
       
       luckyAgent.state = 'On Call';
       luckyAgent.stateDuration = 0;
       
-      // Update SLA
       const waitTime = data.queue.maxWaitTime;
       const metSla = waitTime < 20;
       
@@ -212,14 +279,12 @@ setInterval(() => {
       updated = true;
     }
   } else if (queueRoll < 0.78 && data.queue.callsWaiting > 0) {
-    // Call is abandoned
     data.queue.callsWaiting -= 1;
     data.queue.abandonedCalls += 1;
     data.queue.sla = parseFloat(( (data.queue.sla * (data.queue.handledCalls) + 0) / (data.queue.handledCalls + 1) ).toFixed(1));
     updated = true;
   }
 
-  // Handle waiting time increment
   if (data.queue.callsWaiting > 0) {
     data.queue.maxWaitTime += 2;
     updated = true;
@@ -227,7 +292,6 @@ setInterval(() => {
     data.queue.maxWaitTime = 0;
   }
 
-  // Calculate live occupancy based on agent states
   const activeAgents = data.agents.filter(a => a.role === 'agent' && a.state !== 'Offline').length;
   const onCallOrAcw = data.agents.filter(a => a.role === 'agent' && (a.state === 'On Call' || a.state === 'ACW')).length;
   if (activeAgents > 0) {
@@ -242,23 +306,78 @@ setInterval(() => {
 
 // --- REST API Endpoints ---
 
-// Get all WFM data (Dashboard, Schedules, Requests, Logs)
-app.get('/api/data', (req, res) => {
+// Authentication Endpoint
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Kullanıcı adı ve şifre gereklidir.' });
+  }
+
   const data = readDB();
-  res.json(data);
+  const user = data.agents.find(
+    u => u.username?.toLowerCase() === username.toLowerCase() && u.password === password
+  );
+
+  if (!user) {
+    return res.status(401).json({ error: 'Hatalı kullanıcı adı veya şifre girdiniz.' });
+  }
+
+  // Create a session token using their userId
+  const token = `wfm-token-session-${user.id}`;
+  
+  res.json({
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      username: user.username,
+      avatar: user.avatar,
+      avatarColor: user.avatarColor
+    }
+  });
 });
 
-// Add new Agent
-app.post('/api/agents', (req, res) => {
-  const { name, role, skills, avatarColor } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+// Get all WFM data (Requires authentication)
+app.get('/api/data', authenticateToken, (req, res) => {
+  const data = readDB();
+  
+  // If agent, filter out password credentials for security
+  const cleanAgents = data.agents.map(a => {
+    const { password, ...rest } = a;
+    return rest;
+  });
+  
+  res.json({
+    agents: cleanAgents,
+    schedules: data.schedules,
+    queue: data.queue,
+    requests: data.requests,
+    activityLog: data.activityLog
+  });
+});
+
+// Add new Agent (Requires superadmin or supervisor role)
+app.post('/api/agents', authenticateToken, requireRole(['superadmin', 'supervisor']), (req, res) => {
+  const { name, role, skills, avatarColor, username, password } = req.body;
+  if (!name) return res.status(400).json({ error: 'Temsilci ismi girilmelidir.' });
+  if (!username || !password) return res.status(400).json({ error: 'Kullanıcı adı ve şifre alanları boş olamaz.' });
 
   const data = readDB();
+  
+  // Enforce unique username checks
+  const usernameExists = data.agents.some(a => a.username?.toLowerCase() === username.toLowerCase());
+  if (usernameExists) {
+    return res.status(400).json({ error: 'Bu kullanıcı adı sistemde zaten kullanılıyor.' });
+  }
+
   const avatar = name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   const newAgent = {
     id: `agt-${Date.now()}`,
     name,
     role: role || 'agent',
+    username,
+    password,
     state: 'Offline',
     stateDuration: 0,
     avatar,
@@ -270,7 +389,7 @@ app.post('/api/agents', (req, res) => {
 
   data.agents.push(newAgent);
 
-  // Initialize schedule for the new agent
+  // Initialize schedule
   data.schedules[newAgent.id] = {
     agentId: newAgent.id,
     agentName: newAgent.name,
@@ -285,23 +404,35 @@ app.post('/api/agents', (req, res) => {
     }
   };
 
-  // Add event log
   const timeStr = new Date().toTimeString().split(' ')[0];
   data.activityLog.unshift({
     id: `log-${Date.now()}`,
     time: timeStr,
-    message: `Yeni temsilci eklendi: ${newAgent.name} (${newAgent.role})`,
+    message: `Yeni temsilci eklendi: ${newAgent.name} (Kullanıcı: ${newAgent.username})`,
     type: 'admin'
   });
 
   writeDB(data);
-  res.status(201).json(newAgent);
+  const { password: pw, ...agentWithoutPassword } = newAgent;
+  res.status(201).json(agentWithoutPassword);
 });
 
-// Update Agent details or Active State
-app.put('/api/agents/:id', (req, res) => {
+// Update Agent details or Active State (Can be performed by user themselves or managers)
+app.put('/api/agents/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
   const updates = req.body;
+  const currentUser = req.user;
+
+  // Security Gate: Standard agents can ONLY update their own state/details.
+  // Superadmin and supervisor can update anyone.
+  if (currentUser.role === 'agent' && currentUser.id !== id) {
+    return res.status(403).json({ error: 'Kendi profiliniz haricinde başka bir temsilciyi güncelleyemezsiniz.' });
+  }
+
+  // Security Gate: Supervisors cannot change Super Admin settings or delete their account.
+  if (currentUser.role === 'supervisor' && id === 'superadmin-100' && updates.role && updates.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Süper Admin yetkilerini değiştiremezsiniz.' });
+  }
 
   const data = readDB();
   const index = data.agents.findIndex(a => a.id === id);
@@ -309,11 +440,10 @@ app.put('/api/agents/:id', (req, res) => {
 
   const oldAgent = data.agents[index];
   
-  // Track state change
+  // Handle state change logger
   if (updates.state && updates.state !== oldAgent.state) {
     updates.stateDuration = 0;
     
-    // Login / Logout handling
     if (updates.state === 'Offline') {
       updates.stats = { ...oldAgent.stats, loginTime: '00:00:00' };
     } else if (oldAgent.state === 'Offline') {
@@ -335,12 +465,17 @@ app.put('/api/agents/:id', (req, res) => {
   data.agents[index] = updatedAgent;
 
   writeDB(data);
-  res.json(updatedAgent);
+  const { password, ...cleanUpdatedAgent } = updatedAgent;
+  res.json(cleanUpdatedAgent);
 });
 
-// Delete Agent
-app.delete('/api/agents/:id', (req, res) => {
+// Delete Agent (Requires superadmin role strictly)
+app.delete('/api/agents/:id', authenticateToken, requireRole(['superadmin']), (req, res) => {
   const { id } = req.params;
+
+  if (id === 'superadmin-100') {
+    return res.status(403).json({ error: 'Süper Admin hesabını sistemden silemezsiniz.' });
+  }
 
   const data = readDB();
   const filteredAgents = data.agents.filter(a => a.id !== id);
@@ -352,7 +487,6 @@ app.delete('/api/agents/:id', (req, res) => {
   const agentName = data.agents.find(a => a.id === id)?.name;
   data.agents = filteredAgents;
   
-  // Delete associated schedule
   delete data.schedules[id];
 
   const timeStr = new Date().toTimeString().split(' ')[0];
@@ -367,8 +501,8 @@ app.delete('/api/agents/:id', (req, res) => {
   res.json({ message: 'Agent deleted successfully' });
 });
 
-// Update Agent Schedules
-app.put('/api/schedule/:agentId', (req, res) => {
+// Update Agent Schedules (Requires superadmin or supervisor role)
+app.put('/api/schedule/:agentId', authenticateToken, requireRole(['superadmin', 'supervisor']), (req, res) => {
   const { agentId } = req.params;
   const { weeklyShift } = req.body;
 
@@ -391,10 +525,14 @@ app.put('/api/schedule/:agentId', (req, res) => {
   res.json(data.schedules[agentId]);
 });
 
-// Submit Break Request (from Agent Portal)
-app.post('/api/requests', (req, res) => {
+// Submit Break Request (Agents can submit for themselves)
+app.post('/api/requests', authenticateToken, (req, res) => {
   const { agentId, type, duration } = req.body;
-  if (!agentId || !type) return res.status(400).json({ error: 'Missing agentId or type' });
+  const currentUser = req.user;
+
+  if (currentUser.role === 'agent' && currentUser.id !== agentId) {
+    return res.status(403).json({ error: 'Diğer temsilciler adına mola talebi gönderemezsiniz.' });
+  }
 
   const data = readDB();
   const agent = data.agents.find(a => a.id === agentId);
@@ -424,10 +562,10 @@ app.post('/api/requests', (req, res) => {
   res.status(201).json(newRequest);
 });
 
-// Approve/Deny Break Request (from Supervisor Dashboard)
-app.put('/api/requests/:id', (req, res) => {
+// Approve/Deny Break Request (Requires superadmin or supervisor role)
+app.put('/api/requests/:id', authenticateToken, requireRole(['superadmin', 'supervisor']), (req, res) => {
   const { id } = req.params;
-  const { status } = req.body; // 'Approved' or 'Denied'
+  const { status } = req.body;
 
   if (!['Approved', 'Denied'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
@@ -440,7 +578,6 @@ app.put('/api/requests/:id', (req, res) => {
   const request = data.requests[reqIndex];
   request.status = status;
 
-  // If approved, transition agent to the appropriate state
   if (status === 'Approved') {
     const agentIndex = data.agents.findIndex(a => a.id === request.agentId);
     if (agentIndex !== -1) {
@@ -469,15 +606,14 @@ app.put('/api/requests/:id', (req, res) => {
   res.json(request);
 });
 
-// Reset database to rich initial state
-app.post('/api/reset', (req, res) => {
+// Reset database (Superadmin only)
+app.post('/api/reset', authenticateToken, requireRole(['superadmin']), (req, res) => {
   const defaultData = getInitialData();
   writeDB(defaultData);
   res.json({ message: 'Database reset successfully', data: defaultData });
 });
 
 // --- SPA Build Production Static Server ---
-// In production, build output is created in the dist/ folder. Express serves those static files.
 const DIST_PATH = path.join(__dirname, 'dist');
 app.use(express.static(DIST_PATH));
 
@@ -485,10 +621,10 @@ app.get('*', (req, res) => {
   if (fs.existsSync(path.join(DIST_PATH, 'index.html'))) {
     res.sendFile(path.join(DIST_PATH, 'index.html'));
   } else {
-    res.status(404).send('Vite build folder "dist" not found. Run "npm run build" to generate compile assets.');
+    res.status(404).send('Vite build folder "dist" not found. Run "npm run build" to compile assets.');
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
+  console.log(`Production Backend server running on http://localhost:${PORT}`);
 });

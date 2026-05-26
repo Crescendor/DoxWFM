@@ -4,25 +4,33 @@ import {
   CalendarDays, 
   Users, 
   UserCheck, 
-  ShieldAlert, 
-  LogOut, 
   RefreshCw, 
-  User,
-  Coffee,
+  LogOut,
   CheckCircle,
   XCircle,
-  HelpCircle
+  User,
+  ShieldCheck
 } from 'lucide-react';
 
 import Dashboard from './components/Dashboard.jsx';
 import Scheduler from './components/Scheduler.jsx';
 import AgentManager from './components/AgentManager.jsx';
 import MyPortal from './components/MyPortal.jsx';
+import Login from './components/Login.jsx';
 
 export default function App() {
+  // Production authentication state backed by localStorage
+  const [token, setToken] = useState(localStorage.getItem('doxwfm_token') || null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('doxwfm_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [role, setRole] = useState('manager'); // 'manager' or 'agent'
-  const [selectedAgentId, setSelectedAgentId] = useState('agt-101'); // default agent for portal
   const [data, setData] = useState({
     agents: [],
     schedules: {},
@@ -39,19 +47,37 @@ export default function App() {
     requests: [],
     activityLog: []
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  // Fetch initial data
+  // Sync default tab on login role
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.role === 'agent') {
+        setActiveTab('portal');
+      } else {
+        setActiveTab('dashboard');
+      }
+    }
+  }, [currentUser]);
+
+  // Fetch data with token authorization
   const fetchData = async (showLoading = false) => {
+    if (!token) return;
     if (showLoading) setLoading(true);
     setSyncing(true);
     try {
-      const response = await fetch('/api/data');
+      const response = await fetch('/api/data', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (response.ok) {
         const json = await response.json();
         setData(json);
+      } else if (response.status === 401 || response.status === 403) {
+        // Session expired or invalid, force logout
+        handleLogout();
+        showToast("Oturum süresi doldu, lütfen tekrar giriş yapın.", "error");
       }
     } catch (error) {
       console.error("Error fetching WFM data:", error);
@@ -61,16 +87,17 @@ export default function App() {
     }
   };
 
-  // Setup live-polling simulation (every 2.5 seconds)
+  // Live Sync loop
   useEffect(() => {
-    fetchData(true);
-    const interval = setInterval(() => {
-      fetchData(false);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, []);
+    if (token) {
+      fetchData(true);
+      const interval = setInterval(() => {
+        fetchData(false);
+      }, 2500);
+      return () => clearInterval(interval);
+    }
+  }, [token]);
 
-  // Show customized floating visual feedback
   const showToast = (message, type = 'success') => {
     setNotification({ message, type });
     setTimeout(() => {
@@ -78,14 +105,39 @@ export default function App() {
     }, 3500);
   };
 
+  const handleLogin = (authToken, user) => {
+    localStorage.setItem('doxwfm_token', authToken);
+    localStorage.setItem('doxwfm_user', JSON.stringify(user));
+    setToken(authToken);
+    setCurrentUser(user);
+    showToast(`Hoş geldiniz, ${user.name}!`, "success");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('doxwfm_token');
+    localStorage.removeItem('doxwfm_user');
+    setToken(null);
+    setCurrentUser(null);
+  };
+
   const handleResetData = async () => {
-    if (!window.confirm("Tüm verileri varsayılan örnek verilerle sıfırlamak istiyor musunuz?")) return;
+    if (currentUser?.role !== 'superadmin') {
+      showToast("Bu işlemi yalnızca Süper Admin gerçekleştirebilir.", "error");
+      return;
+    }
+    if (!window.confirm("Tüm verileri varsayılan başlangıç verileriyle sıfırlamak istiyor musunuz?")) return;
+    
     try {
-      const res = await fetch('/api/reset', { method: 'POST' });
+      const res = await fetch('/api/reset', { 
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (res.ok) {
         const json = await res.json();
         setData(json.data);
         showToast("Veri tabanı başarıyla sıfırlandı!", "success");
+      } else {
+        showToast("Sıfırlama başarısız oldu", "error");
       }
     } catch (err) {
       showToast("Sıfırlama başarısız oldu", "error");
@@ -96,12 +148,18 @@ export default function App() {
     try {
       const res = await fetch(`/api/requests/${reqId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ status: 'Approved' })
       });
       if (res.ok) {
         showToast("Mola/Yemek talebi onaylandı!", "success");
         fetchData();
+      } else {
+        const data = await res.json();
+        showToast(data.error || "Onaylama başarısız.", "error");
       }
     } catch (err) {
       showToast("Talep onaylanırken hata oluştu", "error");
@@ -112,33 +170,68 @@ export default function App() {
     try {
       const res = await fetch(`/api/requests/${reqId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ status: 'Denied' })
       });
       if (res.ok) {
         showToast("Mola/Yemek talebi reddedildi.", "error");
         fetchData();
+      } else {
+        const data = await res.json();
+        showToast(data.error || "Reddetme başarısız.", "error");
       }
     } catch (err) {
       showToast("Talep reddedilirken hata oluştu", "error");
     }
   };
 
-  // Filter current pending requests
-  const pendingRequests = data.requests.filter(r => r.status === 'Pending');
+  // Unauthenticated Route handling
+  if (!token || !currentUser) {
+    return (
+      <>
+        {notification && (
+          <div style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            zIndex: 9999,
+            padding: '12px 20px',
+            borderRadius: '12px',
+            background: 'rgba(239, 68, 68, 0.95)',
+            color: 'white',
+            fontWeight: 600,
+            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            backdropFilter: 'blur(10px)',
+            animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          }}>
+            <XCircle size={18} />
+            <span>{notification.message}</span>
+          </div>
+        )}
+        <Login onLogin={handleLogin} showToast={showToast} />
+      </>
+    );
+  }
 
-  // Handle loading state
+  // Handle loading state during bootup sync
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '15px' }}>
         <RefreshCw style={{ animation: 'spin 2s linear infinite', color: '#3b82f6' }} size={48} />
-        <h3 style={{ color: '#94a3b8' }}>DoxWFM Yükleniyor...</h3>
+        <h3 style={{ color: '#94a3b8' }}>DoxWFM Verileri Yükleniyor...</h3>
         <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
-  const currentAgent = data.agents.find(a => a.id === selectedAgentId) || data.agents[0];
+  // Strictly bind personal portal agent session data (cannot be bypassed by clients)
+  const currentAgent = data.agents.find(a => a.id === currentUser.id);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
@@ -198,40 +291,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* Role Indicator Banner */}
-          <div className="glass-panel" style={{ padding: '12px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: role === 'manager' ? '#3b82f6' : '#10b981',
-                boxShadow: role === 'manager' ? '0 0 8px #3b82f6' : '0 0 8px #10b981'
-              }} />
-              <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                {role === 'manager' ? 'Yönetici Görünümü' : 'Temsilci Görünümü'}
-              </span>
-            </div>
-            {role === 'agent' && (
-              <select 
-                value={selectedAgentId}
-                onChange={(e) => {
-                  setSelectedAgentId(e.target.value);
-                  showToast(`${data.agents.find(a => a.id === e.target.value)?.name} portalına geçildi`, "success");
-                }}
-                className="wfm-select" 
-                style={{ width: 'auto', padding: '2px 8px', fontSize: '0.75rem', borderRadius: '6px' }}
-              >
-                {data.agents.filter(a => a.role === 'agent').map(a => (
-                  <option key={a.id} value={a.id}>{a.avatar}</option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* Navigation Menu */}
+          {/* Navigation Matrix by Allowed Role Level */}
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {role === 'manager' ? (
+            {currentUser.role !== 'agent' ? (
               <>
                 <button 
                   onClick={() => setActiveTab('dashboard')}
@@ -273,55 +335,68 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Bottom Actions / Role Toggle */}
+        {/* Bottom Panel: Logged Profile widget */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           
-          {/* Quick Stats Summary */}
-          {role === 'manager' && (
-            <div className="glass-panel" style={{ padding: '12px', background: 'rgba(0,0,0,0.15)', fontSize: '0.75rem', color: '#94a3b8' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span>Aktif SLA:</span>
-                <span style={{ fontWeight: 700, color: data.queue.sla >= data.queue.targetSla ? '#10b981' : '#ef4444' }}>%{data.queue.sla}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Bekleyen Çağrı:</span>
-                <span style={{ fontWeight: 700, color: data.queue.callsWaiting > 3 ? '#ef4444' : '#f59e0b' }}>{data.queue.callsWaiting}</span>
-              </div>
+          {/* Authenticated Profile Card */}
+          <div className="glass-panel" style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.03)' }}>
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              background: currentUser.avatarColor || '#1e293b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              color: 'white'
+            }}>
+              {currentUser.avatar}
             </div>
-          )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontWeight: 700, display: 'block', fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.name}</span>
+              <span style={{ 
+                fontSize: '0.65rem', 
+                color: currentUser.role === 'superadmin' ? '#f87171' : currentUser.role === 'supervisor' ? '#60a5fa' : '#10b981', 
+                fontWeight: 600, 
+                textTransform: 'uppercase'
+              }}>
+                {
+                  currentUser.role === 'superadmin' ? 'Süper Admin' :
+                  currentUser.role === 'supervisor' ? 'Süpervizör' : 'Temsilci'
+                }
+              </span>
+            </div>
+          </div>
 
           {/* Sync indicator */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 4px', fontSize: '0.7rem', color: '#64748b' }}>
             <RefreshCw size={10} style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }} />
-            <span>{syncing ? 'Veriler güncelleniyor...' : 'Veriler senkronize'}</span>
+            <span>{syncing ? 'Veriler senkronize ediliyor...' : 'Gerçek Zamanlı Veriler'}</span>
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            {/* Database Reset Button */}
-            {role === 'manager' && (
+            {/* Database Reset Button for SuperAdmin */}
+            {currentUser.role === 'superadmin' && (
               <button 
                 onClick={handleResetData}
                 className="wfm-btn wfm-btn-secondary" 
-                style={{ flex: 1, padding: '10px', minWidth: '40px' }}
-                title="Verileri Sıfırla"
+                style={{ padding: '10px', minWidth: '40px' }}
+                title="Sistemi Sıfırla"
               >
                 <RefreshCw size={16} />
               </button>
             )}
             
-            {/* View Switcher Button */}
+            {/* Logout Button */}
             <button 
-              onClick={() => {
-                const nextRole = role === 'manager' ? 'agent' : 'manager';
-                setRole(nextRole);
-                setActiveTab(nextRole === 'manager' ? 'dashboard' : 'portal');
-                showToast(`${nextRole === 'manager' ? 'Yönetici' : 'Müşteri Temsilcisi'} görünümüne geçildi`, "success");
-              }}
-              className="wfm-btn wfm-btn-secondary"
-              style={{ flex: 2 }}
+              onClick={handleLogout}
+              className="wfm-btn wfm-btn-danger"
+              style={{ flex: 1 }}
             >
-              <User size={16} />
-              <span>Rolü Değiştir</span>
+              <LogOut size={16} />
+              <span>Çıkış Yap</span>
             </button>
           </div>
         </div>
@@ -345,7 +420,7 @@ export default function App() {
               {activeTab === 'dashboard' && 'Gerçek Zamanlı Durum Monitörü'}
               {activeTab === 'scheduler' && 'Haftalık Vardiya Planlayıcı'}
               {activeTab === 'agents' && 'Müşteri Temsilcisi Yönetim Veritabanı'}
-              {activeTab === 'portal' && `Müşteri Temsilcisi Portalı: ${currentAgent?.name}`}
+              {activeTab === 'portal' && `Müşteri Temsilcisi Portalı: ${currentUser.name}`}
             </h1>
             <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '2px' }}>
               {activeTab === 'dashboard' && 'Kuyruk durumunu, çağrı hacmini ve temsilci faaliyetlerini canlı izleyin.'}
@@ -358,9 +433,9 @@ export default function App() {
           {/* Quick Date Display */}
           <div className="glass-panel" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6', animation: 'state-pulse-OnCall 1.5s infinite' }} />
-            <span style={{ fontWeight: 600 }}>Canlı Yayın</span>
+            <span style={{ fontWeight: 600 }}>Aktif Oturum</span>
             <span style={{ color: '#64748b' }}>|</span>
-            <span style={{ color: '#94a3b8' }}>{new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            <span style={{ color: '#94a3b8' }}>{currentUser.username}</span>
           </div>
         </header>
 
@@ -372,6 +447,8 @@ export default function App() {
             onDenyRequest={handleDenyRequest}
             showToast={showToast}
             fetchData={fetchData}
+            currentUser={currentUser}
+            token={token}
           />
         )}
         
@@ -380,6 +457,8 @@ export default function App() {
             data={data} 
             showToast={showToast}
             fetchData={fetchData}
+            currentUser={currentUser}
+            token={token}
           />
         )}
         
@@ -388,15 +467,19 @@ export default function App() {
             data={data} 
             showToast={showToast}
             fetchData={fetchData}
+            currentUser={currentUser}
+            token={token}
           />
         )}
 
         {activeTab === 'portal' && (
           <MyPortal 
-            agent={currentAgent}
+            agent={currentAgent || currentUser}
             data={data} 
             showToast={showToast}
             fetchData={fetchData}
+            currentUser={currentUser}
+            token={token}
           />
         )}
       </main>

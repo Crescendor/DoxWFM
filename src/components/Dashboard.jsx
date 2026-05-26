@@ -11,7 +11,7 @@ import {
   Play
 } from 'lucide-react';
 
-export default function Dashboard({ data, onApproveRequest, onDenyRequest, showToast, fetchData }) {
+export default function Dashboard({ data, onApproveRequest, onDenyRequest, showToast, fetchData, currentUser, token }) {
   const { queue, agents, requests, activityLog } = data;
 
   const getSlaColor = (val) => {
@@ -32,12 +32,18 @@ export default function Dashboard({ data, onApproveRequest, onDenyRequest, showT
     try {
       const res = await fetch(`/api/agents/${agentId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ state: newState })
       });
       if (res.ok) {
         showToast("Temsilci durumu güncellendi!", "success");
         fetchData();
+      } else {
+        const errData = await res.json();
+        showToast(errData.error || "İşlem başarısız.", "error");
       }
     } catch (err) {
       showToast("Durum güncellenirken hata oluştu", "error");
