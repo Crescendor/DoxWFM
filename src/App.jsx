@@ -47,7 +47,7 @@ export default function App() {
     requests: [],
     activityLog: []
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(localStorage.getItem('doxwfm_token') ? true : false);
   const [syncing, setSyncing] = useState(false);
   const [notification, setNotification] = useState(null);
 

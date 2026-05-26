@@ -125,22 +125,6 @@ export default function Login({ onLogin, showToast }) {
           </div>
         )}
 
-        {/* Credentials hints card */}
-        <div className="glass-panel" style={{
-          padding: '10px 12px',
-          background: 'rgba(255,255,255,0.02)',
-          borderRadius: '8px',
-          fontSize: '0.75rem',
-          color: '#94a3b8',
-          marginBottom: '20px',
-          border: '1px dashed rgba(255,255,255,0.05)'
-        }}>
-          <span style={{ fontWeight: 700, color: '#3b82f6', display: 'block', marginBottom: '2px' }}>Giriş Seviyeleri Örnek Bilgiler:</span>
-          &bull; <strong>Süper Admin</strong>: Doxish / DoxWFM44.<br/>
-          &bull; <strong>Süpervizör</strong>: kaan / doxwfm123<br/>
-          &bull; <strong>Temsilci</strong>: ahmet / doxwfm123
-        </div>
-
         {/* Login Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           

@@ -80,22 +80,22 @@ export default function MyPortal({ agent, data, showToast, fetchData, currentUse
             <div className="glass-panel" style={{ padding: '16px', textAlign: 'center', background: 'rgba(255,255,255,0.02)' }}>
               <PhoneCall size={18} color="#3b82f6" style={{ margin: '0 auto 8px auto' }} />
               <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Cevaplanan Çağrı</span>
-              <h4 style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>{agent.stats.calls} Adet</h4>
+              <h4 style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>{(agent.stats?.calls ?? 0)} Adet</h4>
             </div>
 
             {/* personal AHT */}
             <div className="glass-panel" style={{ padding: '16px', textAlign: 'center', background: 'rgba(255,255,255,0.02)' }}>
               <Clock size={18} color="#14b8a6" style={{ margin: '0 auto 8px auto' }} />
               <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Ortalama Konuşma (AHT)</span>
-              <h4 style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>{agent.stats.aht} sn</h4>
+              <h4 style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>{(agent.stats?.aht ?? 0)} sn</h4>
             </div>
 
             {/* personal SLA */}
             <div className="glass-panel" style={{ padding: '16px', textAlign: 'center', background: 'rgba(255,255,255,0.02)' }}>
               <Percent size={18} color="#8b5cf6" style={{ margin: '0 auto 8px auto' }} />
               <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>SLA Uyumluluğu</span>
-              <h4 style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px', color: agent.stats.sla >= 90 ? '#10b981' : '#f59e0b' }}>
-                %{agent.stats.sla}
+              <h4 style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px', color: (agent.stats?.sla ?? 0) >= 90 ? '#10b981' : '#f59e0b' }}>
+                %{(agent.stats?.sla ?? 0)}
               </h4>
             </div>
 
@@ -105,7 +105,7 @@ export default function MyPortal({ agent, data, showToast, fetchData, currentUse
                 <Coffee size={18} color="#fbbf24" />
               </div>
               <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Kalite Derecesi</span>
-              <h4 style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>{agent.rating.toFixed(1)} / 5</h4>
+              <h4 style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>{(agent.rating ?? 5.0).toFixed(1)} / 5</h4>
             </div>
           </div>
         </section>
